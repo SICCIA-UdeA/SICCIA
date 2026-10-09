@@ -1,6 +1,6 @@
 # SICCIA BackEnd
 
-API HTTP independiente construida con Python y Flask. El paquete vive dentro de `SICCIA/BackEnd`, separado de un futuro frontend, y ofrece autenticación con Google mediante OAuth 2.0 / OpenID Connect (OIDC). La aplicación se crea con una factoría Flask, y separa configuración, rutas y comunicación con Google.
+Backend HTTP construido con Python con autenticación Google mediante Flask y generación de cursos mediante FastAPI. Ambas aplicaciones se montan detrás de un único servidor ASGI con `a2wsgi` y comparten el puerto `8080`; no es necesario separar los servicios por puertos.
 
 ## Funcionalidades actuales
 
@@ -10,8 +10,10 @@ API HTTP independiente construida con Python y Flask. El paquete vive dentro de 
 - Consulta del usuario autenticado.
 - Cierre de sesión.
 - Persistencia únicamente en la sesión de Flask (sin base de datos) — pensado para incorporar una base de datos más adelante sin reescribir la autenticación.
+- Generación asíncrona de cursos con endpoints para consultar el estado y descargar los materiales.
+- Ejecución del orquestador en modo simulado sin credenciales externas, o con proveedores Gemini/OpenAI.
 
-**No incluye actualmente:** frontend, HTML, base de datos, login con usuario/contraseña, roles, JWT propio, CORS ni configuración de despliegue/producción. La sesión se mantiene con la cookie firmada de Flask; no se emite un token propio.
+**No incluye actualmente:** frontend, HTML, base de datos, login con usuario/contraseña, roles, JWT propio, CORS ni configuración de despliegue/producción. La sesión de autenticación se mantiene con la cookie firmada de Flask; no se emite un token propio. Los trabajos del orquestador se mantienen en memoria y se pierden al reiniciar el proceso.
 
 ## Requisitos previos
 
@@ -20,14 +22,14 @@ API HTTP independiente construida con Python y Flask. El paquete vive dentro de 
 
 ## Dependencias
 
-Definidas en `requirements.txt`:
+Las dependencias están separadas por servicio en dos manifiestos. Instala ambos para disponer de todo el backend:
 
-| Librería | Uso |
-|---|---|
-| `Flask` | Framework web: rutas, sesiones, servidor de desarrollo. |
-| `Authlib` | Cliente OAuth 2.0 / OpenID Connect. Construye la URL de login, valida `state`, intercambia el `code` por tokens y verifica el `id_token` contra las claves públicas de Google. |
-| `python-dotenv` | Carga las variables del archivo `.env` al entorno del proceso. |
-| `requests` | Usada internamente por Authlib para las llamadas HTTP a Google. |
+| Manifiesto | Librerías principales | Uso |
+|---|---|---|
+| `requirements.txt` | `Flask`, `Authlib`, `python-dotenv`, `requests` | API de autenticación Google, sesiones y configuración. |
+| `app/requirements.txt` | `fastapi`, `uvicorn[standard]`, `a2wsgi`, `pydantic`, `agno`, `google-genai`, `openai`, `pytest`, `pytest-asyncio`, `httpx` | Servidor unificado ASGI, integración WSGI de Flask, API del orquestador, proveedores LLM y pruebas. |
+
+`agno`, `google-genai` y `openai` se usan al seleccionar sus proveedores correspondientes. El modo `mock` del orquestador no necesita claves de modelo.
 
 ## Instalación
 
@@ -44,8 +46,9 @@ source venv/bin/activate        # macOS / Linux
 venv\Scripts\activate.bat       # Windows (cmd)
 venv\Scripts\Activate.ps1       # Windows (PowerShell)
 
-# 3. Instalar dependencias
+# 3. Instalar dependencias de autenticación y del orquestador
 pip install -r requirements.txt
+pip install -r app/requirements.txt
 
 # 4. Crear el archivo de configuración
 cp .env.example .env            # en Windows: copy .env.example .env
@@ -74,7 +77,7 @@ python -c "import secrets; print(secrets.token_hex(32))"
 4. En **tipo de aplicación**, elige **Web application**.
 5. En **URI de redirección autorizada**, agrega exactamente:
    ```
-   http://localhost:5000/auth/google/callback
+   http://localhost:8080/auth/google/callback
    ```
 6. Copia el **Client ID** y **Client Secret** generados a tu archivo `.env`.
 
@@ -94,7 +97,11 @@ cd SICCIA\BackEnd
 python run.py
 ```
 
-El servidor de desarrollo escucha en `http://localhost:5000`. `run.py` activa `debug=True`, por lo que este modo es solo para desarrollo local; para producción debe usarse un servidor WSGI y una configuración segura.
+El servidor unificado escucha en `http://127.0.0.1:8080`. Uvicorn sirve la API FastAPI y monta la aplicación Flask mediante `a2wsgi`.
+
+La documentación interactiva de FastAPI se encuentra en `http://127.0.0.1:8080/docs`. No inicies un segundo proceso para el orquestador: el mismo servidor expone ambos grupos de endpoints.
+
+El orquestador usa `mock` por defecto, por lo que puede ejecutarse sin credenciales de IA. Para Gemini configura `ORQ_PROVEEDOR=gemini` y `ORQ_API_KEY` (o `GOOGLE_API_KEY`). También acepta `ORQ_PROVEEDOR=openai` con `ORQ_API_KEY`, o `ORQ_PROVEEDOR=openai_like` con `ORQ_API_KEY` y `ORQ_BASE_URL`. Las variables específicas por rol (`PLANIFICADOR`, `EVALUACION`, `CONTENIDO`, `PROGRAMA`) pueden sobrescribir `ORQ_PROVEEDOR`, `ORQ_MODEL_ID`, `ORQ_API_KEY`, `ORQ_BASE_URL` y `ORQ_TEMPERATURA`; los valores comunes tienen el prefijo `ORQ_`.
 
 ## Endpoints
 
@@ -104,6 +111,35 @@ El servidor de desarrollo escucha en `http://localhost:5000`. `run.py` activa `d
 | `GET` | `/auth/google/callback` | URL de retorno de Google. Valida la respuesta y crea la sesión; no se llama manualmente. |
 | `GET` | `/auth/me` | Devuelve los datos del usuario autenticado, o `401` si no hay sesión activa. |
 | `GET` | `/auth/logout` | Elimina de la sesión los datos del usuario de la aplicación. No cierra la sesión de Google. |
+
+### Orquestador de cursos (FastAPI, puerto 8080)
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/orquestador/cursos` | Inicia un trabajo de generación y devuelve su `id` y estado inicial (`202`). El cuerpo es un objeto `Configurador`; `datos.tema` es obligatorio. |
+| `GET` | `/orquestador/cursos/{trabajo_id}` | Consulta estado, vías ejecutadas, archivos disponibles y posibles errores. |
+| `GET` | `/orquestador/cursos/{trabajo_id}/descarga` | Descarga todos los materiales como ZIP; responde `409` si el trabajo no ha terminado y `404` si no generó archivos. |
+| `GET` | `/orquestador/cursos/{trabajo_id}/archivos/{nombre}` | Descarga un archivo Markdown generado. |
+
+El configurador acepta `datos`, `contenido`, `evaluacion` y `estilo`. Puedes usar [`app/ejemplo_configurador.json`](app/ejemplo_configurador.json) como referencia. Ejemplo de inicio desde `SICCIA/BackEnd`:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8080/orquestador/cursos `
+   -ContentType 'application/json' `
+   -InFile .\app\ejemplo_configurador.json
+```
+
+La respuesta incluye un identificador de trabajo. Úsalo para consultar su estado o descargar los resultados:
+
+```text
+GET http://127.0.0.1:8080/orquestador/cursos/{trabajo_id}
+GET http://127.0.0.1:8080/orquestador/cursos/{trabajo_id}/descarga
+GET http://127.0.0.1:8080/orquestador/cursos/{trabajo_id}/archivos/{nombre}
+```
+
+Los estados posibles son `pendiente`, `planificando`, `ejecutando`, `completado`, `completado_con_errores` y `error`. El identificador solo está disponible mientras el proceso que creó el trabajo siga activo.
+
+Aunque ambas APIs comparten el servidor y puerto, los endpoints del orquestador no están protegidos por la sesión de autenticación Google en la configuración actual.
 
 **Respuesta de `/auth/me` autenticado:**
 ```json
@@ -124,35 +160,40 @@ El servidor de desarrollo escucha en `http://localhost:5000`. `run.py` activa `d
 
 ## Probar el flujo (sin frontend)
 
-1. Abrir en el navegador: `http://localhost:5000/auth/google`.
+1. Abrir en el navegador: `http://localhost:8080/auth/google`.
 2. Iniciar sesión con una cuenta de Google → redirige automáticamente a `/auth/me` mostrando los datos del usuario.
 3. Verificar sin sesión:
    ```bash
-   curl -i http://localhost:5000/auth/me
+   curl -i http://localhost:8080/auth/me
    ```
 4. Cerrar sesión:
    ```bash
-   curl -i http://localhost:5000/auth/logout
+   curl -i http://localhost:8080/auth/logout
    ```
 
 El login en sí debe probarse desde el navegador, porque requiere la pantalla interactiva de Google; `curl`/Postman sirven para inspeccionar `/auth/me` y `/auth/logout` reutilizando la cookie de sesión del navegador.
 
 ## Arquitectura del paquete
 
-La factoría `create_app()` carga y valida la configuración, inicializa Authlib y registra el blueprint de autenticación. Las rutas HTTP delegan el protocolo de Google en el servicio; Flask administra la cookie de sesión.
+La factoría `app.server.crear_app()` crea la API FastAPI del orquestador y monta la app Flask con `a2wsgi`. Uvicorn sirve ambas en el mismo puerto; Flask conserva la gestión de sesiones y Authlib.
 
 ```mermaid
 flowchart LR
    Client[Cliente HTTP o futuro frontend] -->|Solicitudes HTTP| Run[run.py]
-   Run --> Factory[app.create_app]
-   Factory --> Config[app.config.Config]
-   Factory --> Routes[app.routes.auth]
-   Factory --> OAuthInit[app.services.google_auth]
-   Routes -->|Iniciar login y procesar callback| OAuthInit
+   Run --> Server[app.server.crear_app]
+   Server --> Orchestrator[FastAPI app.orquestador.app]
+   Server --> WSGI[a2wsgi WSGIMiddleware]
+   WSGI --> Flask[app.create_app]
+   Flask --> Config[app.config.Config]
+   Flask --> AuthController[controller.auth_controller]
+   Flask --> OAuthInit[app.services.google_auth]
+   Orchestrator --> CourseController[controller.orquestador_controller]
+   CourseController -->|POST, consulta y descargas| Client
+   AuthController -->|Iniciar login y procesar callback| OAuthInit
    OAuthInit <-->|OAuth 2.0 / OIDC| Google[Google Identity]
-   Routes <-->|Lee y modifica| Session[Cookie de sesión Flask]
-   Routes -->|JSON o redirección| Client
-   Config -->|Variables de entorno y .env| Factory
+   AuthController <-->|Lee y modifica| Session[Cookie de sesión Flask]
+   AuthController -->|JSON o redirección| Client
+   Config -->|Variables de entorno y .env| Flask
 ```
 
 ### Estructura actual
@@ -163,23 +204,36 @@ SICCIA/
 └── BackEnd/
    ├── __init__.py
    ├── run.py
+   ├── controller/
+   │  ├── __init__.py
+   │  ├── auth_controller.py
+   │  └── orquestador_controller.py
    ├── requirements.txt
    ├── .env.example
    ├── README.md
    └── app/
       ├── __init__.py
       ├── config.py
-      ├── routes/
-      │   ├── __init__.py
-      │   └── auth.py
+      ├── server.py
+      ├── requirements.txt
+      ├── ejemplo_configurador.json
+      ├── tests/
+      ├── orquestador/
+         ├── __main__.py
+         ├── app.py
+         ├── orquestador.py
+         ├── schemas.py
+         └── agentes/
       └── services/
          └── google_auth.py
 ```
 
 - `SICCIA/__init__.py` y `SICCIA/BackEnd/__init__.py` permiten importar el backend como paquete (`SICCIA.BackEnd`).
-- `run.py` es el punto de entrada y admite tanto `python -m SICCIA.BackEnd.run` desde la raíz como `python run.py` desde `SICCIA/BackEnd`.
+- `run.py` es el punto de entrada único y admite `python -m SICCIA.BackEnd.run` desde la raíz o `python run.py` desde `SICCIA/BackEnd`; ambos inician Uvicorn en el puerto `8080`.
+- `app/server.py` monta la aplicación Flask de autenticación en FastAPI usando `a2wsgi`.
 - `app/__init__.py` define `create_app()`; `config.py` carga `.env` y valida las credenciales requeridas.
-- `app/routes/auth.py` expone los endpoints HTTP y `app/services/google_auth.py` encapsula la integración con Authlib.
+- `controller/auth_controller.py` expone los endpoints de autenticación, `controller/orquestador_controller.py` expone los endpoints de cursos y `app/services/google_auth.py` encapsula la integración con Authlib.
+- `app/orquestador/` contiene la API FastAPI, los esquemas, la planificación y los agentes que generan los materiales.
 - `.env` contiene la configuración local y no debe publicarse. `.env.example` sirve como plantilla.
 
 ## Flujo de los endpoints
@@ -238,4 +292,4 @@ Del `id_token` ya verificado se extrae `sub` (identificador único y estable de 
 
 ## Extensibilidad
 
-La separación entre `routes/` (HTTP) y `services/` (lógica de Google) permite, por ejemplo, incorporar una base de datos más adelante sustituyendo `session[...] = user_info` por una función que busque o cree el usuario en la base de datos usando `sub` como clave — sin tocar la integración con Google.
+La separación entre `controller/` (HTTP) y `app/services/` (integración con Google) permite, por ejemplo, incorporar una base de datos más adelante sustituyendo `session[...] = user_info` por una función que busque o cree el usuario usando `sub` como clave, sin tocar la integración OAuth.
