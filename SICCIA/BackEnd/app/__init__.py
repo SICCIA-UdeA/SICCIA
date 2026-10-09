@@ -25,8 +25,11 @@ def create_app():
     init_google_oauth(app)
 
     # Registra las rutas de autenticación bajo el prefijo /auth.
-    from .routes.auth import auth_bp
+    if __package__ == "app":
+        from controller.auth_controller import AuthController
+    else:
+        from ..controller.auth_controller import AuthController
 
-    app.register_blueprint(auth_bp)
+    app.register_blueprint(AuthController().router)
 
     return app

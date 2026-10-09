@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+a2wsgi
+pydantic>=2
+agno
+google-genai   # necesario para Gemini en Agno
+openai         # necesario para openai_like / openai
+# pruebas
+pytest
+pytest-asyncio
+httpx

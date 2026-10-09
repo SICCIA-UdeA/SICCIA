@@ -1,18 +1,13 @@
-"""
-Punto de entrada para ejecutar el backend localmente.
+"""Punto de entrada para ejecutar todas las APIs del backend en el puerto 8080."""
 
-Uso:
-    python run.py
-"""
+import uvicorn
 
 if __package__:
-    from .app import create_app
+    from .app.server import crear_app
 else:
-    from app import create_app
+    from app.server import crear_app
 
 app = create_app()
 
 if __name__ == "__main__":
-    # debug=True solo para desarrollo local: recarga automática y
-    # mensajes de error detallados. Nunca debe usarse en producción.
-    app.run(host="localhost", port=5000, debug=True)
+    uvicorn.run(app, host="127.0.0.1", port=8080)

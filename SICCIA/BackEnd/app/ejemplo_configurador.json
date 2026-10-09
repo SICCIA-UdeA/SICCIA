@@ -1,0 +1,24 @@
+{
+  "datos": {
+    "tema": "Introducción a la programación con Python",
+    "publico_objetivo": "Estudiantes de primer semestre sin experiencia previa",
+    "duracion_estimada": "30 horas",
+    "metodologia": "Aprendizaje basado en problemas"
+  },
+  "contenido": {
+    "modulos_modo": "automatico",
+    "num_modulos": 4,
+    "incluir_ejemplos_practicos": true,
+    "incluir_talleres_practica": true,
+    "incluir_cierre_por_modulo": true
+  },
+  "evaluacion": {
+    "tipos_pregunta": ["selección múltiple", "falso/verdadero", "pregunta abierta"],
+    "actividades": [
+      {"tipo": "examen", "cantidad": 2, "porcentaje": 60},
+      {"tipo": "laboratorio", "cantidad": 2, "porcentaje": 40}
+    ],
+    "total_actividades": 4
+  },
+  "estilo": {"formato_salida": "pdf", "incluir_imagenes": false}
+}
