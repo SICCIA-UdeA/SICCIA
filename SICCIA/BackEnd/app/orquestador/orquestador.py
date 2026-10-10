@@ -1,50 +1,4 @@
-"""Orquestador: valida → completa datos → plantilla madre → 3 vías en paralelo → recolecta."""
-from __future__ import annotations
-
-import asyncio
-import logging
-from collections.abc import Callable
-from pathlib import Path
-
-from .agentes import ViaBase, ViaContenido, ViaEvaluacion, ViaPrograma
-from .config import directorio_salida
-from .ejecutores import EjecutorLLM, crear_ejecutor
-from .planificador import Planificador
-from .plantillas import construir_plantilla_madre
-from .schemas import Configurador, CursoPlan
-from .trabajos import EstadoTrabajo, GestorTrabajos, Trabajo
-
-log = logging.getLogger(__name__)
-
-
-class Orquestador:
-    def __init__(
-        self,
-        directorio: Path | None = None,
-        fabrica_ejecutor: Callable[[str], EjecutorLLM] = crear_ejecutor,
-    ):
-        self.trabajos = GestorTrabajos(directorio or directorio_salida())
-        self._fabrica = fabrica_ejecutor
-        self._tareas: set[asyncio.Task] = set()
-
-    # ------------------------------------------------------------------ API
-    def iniciar(self, config: Configurador) -> Trabajo:
-        """Registra el trabajo y lo lanza en segundo plano. Debe llamarse con el loop activo."""
-        trabajo = self.trabajos.crear()
-        tarea = asyncio.create_task(self._procesar(trabajo, config))
-        self._tareas.add(tarea)
-        tarea.add_done_callback(self._tareas.discard)
-        return trabajo
-
-    # --------------------------------------------------------------- pipeline
-    def _crear_vias(self) -> list[ViaBase]:
-        return [
-            ViaEvaluacion(self._fabrica("evaluacion")),
-            ViaContenido(self._fabrica("contenido")),
-            ViaPrograma(self._fabrica("programa")),
-        ]
-
-    async def _procesar(self, trabajo: Trabajo, config: Configurador) -> None:
+async def _procesar(self, trabajo: Trabajo, config: Configurador) -> None:
         try:
             trabajo.estado = EstadoTrabajo.PLANIFICANDO
             plan = await Planificador(self._fabrica("planificador")).completar(config)
@@ -53,41 +7,74 @@ class Orquestador:
             self._guardar_interno(trabajo, "plan_curso.json", plan.model_dump_json(indent=2))
             self._guardar_interno(trabajo, "plantilla_madre.md", madre)
 
-            vias = self._crear_vias()
             trabajo.estado = EstadoTrabajo.EJECUTANDO
-            trabajo.vias = {v.rol: "en_curso" for v in vias}
-            resultados = await asyncio.gather(*(self._correr_via(trabajo, v, madre, config, plan) for v in vias))
+            trabajo.vias = {v.rol: "pendiente" for v in self._crear_vias()}
+            
+            # --- FASE 1 (Contenido y Programa en paralelo) ---
+            log.info(f"[{trabajo.id}] Iniciando Fase 1: Programa y Contenido")
+            vias_fase_1 = [
+                ViaPrograma(self._fabrica("programa")),
+                ViaContenido(self._fabrica("contenido"))
+            ]
+            for v in vias_fase_1:
+                trabajo.vias[v.rol] = "en_curso"
+                
+            resultados_fase_1 = await asyncio.gather(
+                *(self._correr_via(trabajo, v, madre, config, plan) for v in vias_fase_1)
+            )
 
-            exitosas = sum(resultados)
-            if exitosas == len(vias):
-                trabajo.estado = EstadoTrabajo.COMPLETADO
-            elif exitosas > 0:
-                trabajo.estado = EstadoTrabajo.COMPLETADO_CON_ERRORES
+            # --- RESCATE DEL TEXTO PARA FASE 2 ---
+            if "contenido_curso.md" in trabajo.archivos:
+                texto_contenido = trabajo.archivos["contenido_curso.md"].contenido
             else:
+                texto_contenido = "ADVERTENCIA CRÍTICA: EL CONTENIDO NO SE GENERÓ DEBIDO A UN FALLO. NOTIFIQUE ESTE ERROR."
+
+            madre_fase_2 = (
+                madre + 
+                "\n\n## ATENCIÓN: CONTENIDO REAL GENERADO\n"
+                "Básate ESTRICTAMENTE en esta teoría para tu tarea. "
+                "No evalúes ni verifiques conceptos que no estén aquí:\n\n"
+                f"{texto_contenido}"
+            )
+
+            # --- FASE 2 (Evaluación y Verificación en paralelo) ---
+            log.info(f"[{trabajo.id}] Iniciando Fase 2: Evaluación y Verificación")
+            vias_fase_2 = [ViaEvaluacion(self._fabrica("evaluacion"))]
+            if ViaVerificacion:
+                vias_fase_2.append(ViaVerificacion(self._fabrica("verificacion")))
+                
+            for v in vias_fase_2:
+                trabajo.vias[v.rol] = "en_curso"
+                
+            resultados_fase_2 = await asyncio.gather(
+                *(self._correr_via(trabajo, v, madre_fase_2, config, plan) for v in vias_fase_2)
+            )
+
+            # --- COMPROBACIÓN FINAL Y CREACIÓN DE PDF CORREGIDA ---
+            exitosas = sum(resultados_fase_1) + sum(resultados_fase_2)
+            total_vias = len(vias_fase_1) + len(vias_fase_2)
+            
+            if exitosas > 0:
+                # El estado refleja fielmente si todas las vías pasaron o si algunas fallaron
+                if exitosas == total_vias:
+                    trabajo.estado = EstadoTrabajo.COMPLETADO
+                else:
+                    trabajo.estado = EstadoTrabajo.COMPLETADO_CON_ERRORES
+                
+                try:
+                    from .exportador_pdf import procesar_imagenes_y_pdf
+                    # Solo le pasamos a la librería los archivos que sí se completaron exitosamente
+                    procesar_imagenes_y_pdf(trabajo.dir_resultados, trabajo.archivos)
+                    log.info(f"[{trabajo.id}] Procesados los PDFs de las {exitosas} vías exitosas.")
+                except ImportError:
+                    pass
+                    
+            else:
+                # Si fallan absolutamente todas las vías, abortamos totalmente
                 trabajo.estado = EstadoTrabajo.ERROR
-                trabajo.error = "Ninguna vía de trabajo terminó correctamente"
-        except Exception as exc:  # noqa: BLE001 - el trabajo debe quedar marcado, no perderse
+                trabajo.error = "Ninguna vía de trabajo logró completarse (todas fallaron tras los reintentos)."
+                
+        except Exception as exc:  # noqa: BLE001
             log.exception("Trabajo %s falló", trabajo.id)
             trabajo.estado = EstadoTrabajo.ERROR
             trabajo.error = str(exc)
-
-    async def _correr_via(
-        self, trabajo: Trabajo, via: ViaBase, madre: str, config: Configurador, plan: CursoPlan
-    ) -> bool:
-        """Una vía que falla no cancela a las demás."""
-        try:
-            resultado = await via.ejecutar(madre, config, plan)
-            self._guardar_interno(trabajo, f"subplantilla_{via.rol}.md", resultado.subplantilla)
-            for archivo in resultado.archivos:
-                (trabajo.dir_resultados / archivo.nombre).write_text(archivo.contenido, encoding="utf-8")
-                trabajo.archivos[archivo.nombre] = archivo
-            trabajo.vias[via.rol] = "completada"
-            return True
-        except Exception as exc:  # noqa: BLE001
-            log.exception("Vía %s falló en el trabajo %s", via.rol, trabajo.id)
-            trabajo.vias[via.rol] = f"error: {exc}"
-            return False
-
-    @staticmethod
-    def _guardar_interno(trabajo: Trabajo, nombre: str, contenido: str) -> None:
-        (trabajo.dir_interno / nombre).write_text(contenido, encoding="utf-8")

@@ -7,7 +7,7 @@ if __package__:
 else:
     from app.server import crear_app
 
-app = create_app()
+app = crear_app()
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8080)

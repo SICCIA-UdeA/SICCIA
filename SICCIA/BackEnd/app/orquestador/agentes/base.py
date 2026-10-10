@@ -51,9 +51,13 @@ class ViaBase(ABC):
 
     def construir_prompt(self, plantilla_madre: str, subplantilla: str) -> str:
         marcadores = "\n".join(f"<!-- ARCHIVO: {n} -->" for n in self.archivos_esperados)
+        
+        anti_latex = "REGLA ESTRICTA DE FORMATO: Usa ÚNICAMENTE Markdown estándar. ESTÁ TOTALMENTE PROHIBIDO usar LaTeX, MathJax, o símbolos de dólar ($ o $$). Escribe las fórmulas matemáticas como texto normal.\n\n"
+        
         return (
             "Recibes dos documentos. La plantilla base fija el contexto común del curso y la "
             "plantilla específica indica exactamente qué debes producir. Cumple ambas.\n\n"
+            f"{anti_latex}"
             f"---\n## DOCUMENTO 1: PLANTILLA BASE\n\n{plantilla_madre}\n\n"
             f"---\n## DOCUMENTO 2: PLANTILLA ESPECÍFICA\n\n{subplantilla}\n\n"
             "---\n## Formato de entrega\n"
