@@ -10,10 +10,10 @@ from fastapi.testclient import TestClient
 from app.config import Config
 from app.server import crear_app as crear_backend_app
 from controller.orquestador_controller import OrquestadorController
-from orquestador import Configurador, Orquestador
-from orquestador.ejecutores import EjecutorMock
-from orquestador.plantillas import construir_plantilla_madre
-from orquestador.planificador import Planificador
+from app.orquestador import Configurador, Orquestador
+from app.orquestador.ejecutores import EjecutorMock
+from app.orquestador.plantillas import construir_plantilla_madre
+from app.orquestador.planificador import Planificador
 
 EJEMPLO = json.loads((Path(__file__).parent.parent / "ejemplo_configurador.json").read_text(encoding="utf-8"))
 
@@ -38,8 +38,8 @@ def test_flujo_completo_con_mock(tmp_path):
             time.sleep(0.05)
 
         assert estado["estado"] == "completado", estado
-        nombres = {a["nombre"] for a in estado["archivos"]}
-        assert nombres == {"evaluaciones.md", "contenido_curso.md", "programa_curso.md", "presentaciones.md"}
+        nombres = {a["nombre"] for a in estado["archivos"] if a["nombre"].endswith(".md")}
+        assert nombres == {"evaluaciones.md", "contenido_curso.md", "programa_curso.md", "presentaciones.md", "verificacion.md"}
         assert cliente.get(f"/orquestador/cursos/{trabajo_id}/descarga").status_code == 200
         assert (tmp_path / trabajo_id / "interno" / "plantilla_madre.md").exists()
 
@@ -82,4 +82,30 @@ async def test_plantilla_madre_contiene_estructura():
     plan = await Planificador(EjecutorMock()).completar(config)
     madre = construir_plantilla_madre(plan)
     assert "### Módulo 4" in madre and "4.3." in madre
-    assert config.datos.publico_objetivo in madre  # lo dado por el usuario se conserva
+    assert config.datos.publico_objetivo in madre  # lo dado por el usuario se conservahead -2 app/tests/test_flujo.py
+
+
+def test_pdf_se_descarga_como_pdf_y_entra_al_zip(tmp_path):
+    import io
+    import zipfile
+
+    with _cliente(tmp_path) as cliente:
+        trabajo_id = cliente.post("/orquestador/cursos", json=EJEMPLO).json()["id"]
+        for _ in range(200):
+            estado = cliente.get(f"/orquestador/cursos/{trabajo_id}").json()
+            if estado["estado"] not in ("pendiente", "planificando", "ejecutando"):
+                break
+            time.sleep(0.05)
+
+        pdfs = [a["nombre"] for a in estado["archivos"] if a["nombre"].endswith(".pdf")]
+        assert pdfs, "no se registró ningún PDF (revisa que WeasyPrint esté instalado)"
+
+        r = cliente.get(f"/orquestador/cursos/{trabajo_id}/archivos/{pdfs[0]}")
+        assert r.status_code == 200
+        assert r.headers["content-type"] == "application/pdf"
+        assert r.content[:4] == b"%PDF"
+
+        z = cliente.get(f"/orquestador/cursos/{trabajo_id}/descarga")
+        assert z.status_code == 200
+        with zipfile.ZipFile(io.BytesIO(z.content)) as zf:
+            assert zf.read(pdfs[0])[:4] == b"%PDF"
