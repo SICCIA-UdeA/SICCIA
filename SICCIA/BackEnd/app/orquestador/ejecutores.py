@@ -27,14 +27,30 @@ class EjecutorLLM(Protocol):
     async def generar(self, *, rol: str, instrucciones: str, prompt: str) -> str: ...
 
 
-# --- LOG DE TOKENS PARA EL PAPER ---
-def log_prueba(proveedor: str, modelo: str, rol: str, usage, segundos: float):
-    pt = getattr(usage, "prompt_tokens", 0) if usage else 0
-    ct = getattr(usage, "completion_tokens", 0) if usage else 0
+# --- CAMBIO SICCIA: LOG DE TOKENS PARA EL PAPER ---
+def log_prueba(proveedor: str, modelo: str, rol: str, respuesta_agno, segundos: float):
+    """Guarda automáticamente los consumos en CSV para el artículo académico."""
+    pt, ct = 0, 0
     
-    if pt == 0 and ct == 0 and isinstance(usage, dict):
-        pt = usage.get("prompt_tokens", 0)
-        ct = usage.get("completion_tokens", 0)
+    # Intento 1: Formato estándar de métricas de Agno (Ahora lee Objetos correctamente)
+    if hasattr(respuesta_agno, "metrics") and respuesta_agno.metrics:
+        m = respuesta_agno.metrics
+        if isinstance(m, dict):
+            pt = m.get("prompt_tokens", m.get("input_tokens", 0))
+            ct = m.get("completion_tokens", m.get("output_tokens", 0))
+        else:
+            pt = getattr(m, "prompt_tokens", getattr(m, "input_tokens", 0))
+            ct = getattr(m, "completion_tokens", getattr(m, "output_tokens", 0))
+    
+    # Intento 2: Formato raw/usage (Común en OpenRouter/Groq directos)
+    elif hasattr(respuesta_agno, "usage") and respuesta_agno.usage:
+        uso = respuesta_agno.usage
+        if isinstance(uso, dict):
+            pt = uso.get("prompt_tokens", uso.get("input_tokens", 0))
+            ct = uso.get("completion_tokens", uso.get("output_tokens", 0))
+        else:
+            pt = getattr(uso, "prompt_tokens", getattr(uso, "input_tokens", 0))
+            ct = getattr(uso, "completion_tokens", getattr(uso, "output_tokens", 0))
 
     archivo = "registro_pruebas_siccia.csv"
     es_nuevo = not os.path.exists(archivo)
@@ -44,10 +60,10 @@ def log_prueba(proveedor: str, modelo: str, rol: str, usage, segundos: float):
         if es_nuevo:
             writer.writerow(["Fecha", "Proveedor", "Modelo", "Via_Rol", "Prompt_Tokens", "Completion_Tokens", "Tiempo_Segundos"])
         writer.writerow([time.strftime("%Y-%m-%d %H:%M"), proveedor, modelo, rol, pt, ct, round(segundos, 1)])
-# -----------------------------------
-
+# ---------------------------------------------------
 
 class EjecutorMock:
+    """Devuelve Markdown de relleno e informa qué recibió, sin llamar a ningún modelo."""
     es_simulado = True
 
     async def generar(self, *, rol: str, instrucciones: str, prompt: str) -> str:
@@ -133,15 +149,17 @@ class EjecutorAgno:
                     except json.JSONDecodeError:
                         pass # Falsa alarma, es texto Markdown que curiosamente empezaba con llave
                 
-                # Si pasa los filtros, registramos telemetría y retornamos
-                uso = getattr(respuesta, "usage", None)
-                log_prueba(
-                    proveedor=self._cfg.proveedor, 
-                    modelo=getattr(modelo_actual, "id", self._cfg.model_id), 
-                    rol=rol, 
-                    usage=uso, 
-                    segundos=t1 - t0
-                )
+                # Telemetría: Pasamos la respuesta completa para cazar los tokens
+                try:
+                    log_prueba(
+                        proveedor=self._cfg.proveedor, 
+                        modelo=getattr(modelo_actual, "id", self._cfg.model_id), 
+                        rol=rol, 
+                        respuesta_agno=respuesta,
+                        segundos=t1 - t0
+                    )
+                except Exception as exc:  # un fallo de telemetría no debe repetir la llamada al modelo
+                    log.warning(f"[{rol}] No se pudo registrar la telemetría: {exc}")
                 
                 return contenido
 
@@ -151,11 +169,11 @@ class EjecutorAgno:
                     log.warning(f"[{rol}] Intento {intento} falló ({exc}). Reintentando en {tiempo_espera}s...")
                     await asyncio.sleep(tiempo_espera)
                     
-                    # 3. FALLBACK: Si es el último reintento, saltar al salvavidas (Gemini)
+                    # 3. FALLBACK: Si es el último reintento, saltar al salvavidas
                     if intento == intentos_maximos - 1:
                         log.warning(f"[{rol}] Agotando recursos. Cambiando a modelo de respaldo: gemini-2.5-flash")
                         from agno.models.google import Gemini
-                        fallback_key = os.getenv("GOOGLE_API_KEY") or os.getenv("ORQ_API_KEY_CONTENIDO")
+                        fallback_key = os.getenv("GOOGLE_API_KEY")
                         modelo_actual = Gemini(id="gemini-2.5-flash", api_key=fallback_key)
                 else:
                     log.error(f"[{rol}] Fallo definitivo tras {intentos_maximos} intentos.")

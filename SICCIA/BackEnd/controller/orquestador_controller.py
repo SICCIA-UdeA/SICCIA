@@ -42,7 +42,7 @@ class OrquestadorController:
             creado_en=trabajo.creado_en,
             vias=dict(trabajo.vias),
             archivos=[
-                ArchivoInfo(nombre=a.nombre, via=a.via, tamano_bytes=len(a.contenido.encode("utf-8")))
+                ArchivoInfo(nombre=a.nombre, via=a.via, tamano_bytes=self._tamano(trabajo, a))
                 for a in trabajo.archivos.values()
             ],
             error=trabajo.error,
@@ -52,9 +52,11 @@ class OrquestadorController:
         trabajo = self._obtener(trabajo_id)
         if nombre not in trabajo.archivos:
             raise HTTPException(404, "Archivo no encontrado")
-        return FileResponse(
-            trabajo.dir_resultados / nombre, media_type="text/markdown; charset=utf-8", filename=nombre
-        )
+        ruta = trabajo.dir_resultados / nombre
+        if not ruta.exists():
+            raise HTTPException(404, "El archivo ya no está en disco")
+        tipo = "application/pdf" if nombre.endswith(".pdf") else "text/markdown; charset=utf-8"
+        return FileResponse(ruta, media_type=tipo, filename=nombre)
 
     async def descargar_zip(self, trabajo_id: str) -> Response:
         trabajo = self._obtener(trabajo_id)
@@ -65,12 +67,22 @@ class OrquestadorController:
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
             for nombre, archivo in trabajo.archivos.items():
-                zf.writestr(nombre, archivo.contenido)
+                ruta = trabajo.dir_resultados / nombre
+                if ruta.exists():
+                    zf.write(ruta, arcname=nombre)  # lee desde disco: sirve para .md y .pdf
+                else:
+                    zf.writestr(nombre, archivo.contenido)
         return Response(
             content=buffer.getvalue(),
             media_type="application/zip",
             headers={"Content-Disposition": f'attachment; filename="curso_{trabajo.id[:8]}.zip"'},
         )
+
+    def _tamano(self, trabajo: Trabajo, archivo) -> int:
+        ruta = trabajo.dir_resultados / archivo.nombre
+        if ruta.exists():
+            return ruta.stat().st_size
+        return len(archivo.contenido.encode("utf-8"))
 
     def _obtener(self, trabajo_id: str) -> Trabajo:
         trabajo = self.orquestador.trabajos.obtener(trabajo_id)
