@@ -12,4 +12,16 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  vite: {
+    server: {
+      proxy: {
+        // Reenvía /api/* al backend (FastAPI + Flask en el puerto 8080) sin requerir CORS.
+        "/api": {
+          target: process.env["BACKEND_URL"] ?? "http://127.0.0.1:8080",
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api/, ""),
+        },
+      },
+    },
+  },
 });
