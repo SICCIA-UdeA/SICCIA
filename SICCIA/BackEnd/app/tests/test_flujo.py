@@ -82,7 +82,7 @@ async def test_plantilla_madre_contiene_estructura():
     plan = await Planificador(EjecutorMock()).completar(config)
     madre = construir_plantilla_madre(plan)
     assert "### Módulo 4" in madre and "4.3." in madre
-    assert config.datos.publico_objetivo in madre  # lo dado por el usuario se conservahead -2 app/tests/test_flujo.py
+    assert config.datos.publico_objetivo in madre  # lo dado por el usuario se conserva
 
 
 def test_pdf_se_descarga_como_pdf_y_entra_al_zip(tmp_path):
