@@ -5,6 +5,8 @@ pydantic>=2
 agno
 google-genai   # necesario para Gemini en Agno
 openai         # necesario para openai_like / openai
+markdown       # conversión de Markdown a HTML para exportar los PDF
+weasyprint     # generación de PDF desde HTML
 # pruebas
 pytest
 pytest-asyncio
