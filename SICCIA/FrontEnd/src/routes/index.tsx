@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { cerrarSesion, crearCurso, descargarArchivo, descargarZip, ESTADOS_FINALES, estadoCurso, urlLoginGoogle, usuarioActual, type EstadoTrabajo, type TrabajoRespuesta, type Usuario } from "@/lib/api";
+import { cerrarSesion, crearCurso, descargarArchivo, descargarZipPdf, ESTADOS_FINALES, estadoCurso, urlLoginGoogle, usuarioActual, type EstadoTrabajo, type TrabajoRespuesta, type Usuario } from "@/lib/api";
 import { type Configurador, construirConfigurador, MAX_MODULOS, MIN_TEMA, validarConfigurador } from "@/lib/configurador";
 
 export const Route = createFileRoute("/")({
@@ -343,7 +343,7 @@ function Result({ go, job, config }: { go: (v: View) => void; job: TrabajoRespue
       <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold", ok ? "bg-success-soft text-success" : "bg-warning-soft text-warning")}>{ok ? <Check className="size-3"/> : <CircleAlert className="size-3"/>}{estadoLabels[job.estado]}</span>
       <h2 className="mt-3 text-xl font-bold">{config.datos.tema}</h2>
       <p className="mt-1 text-sm text-muted-foreground">{[config.datos.duracion_estimada, c.modulos_modo === "manual" ? `${c.modulos.length} módulos` : "Módulos automáticos", config.datos.metodologia].filter(Boolean).join(" · ")}</p>
-    </div><Button disabled={!job.archivos.length || busy !== null} onClick={() => run("zip", () => descargarZip(job.id))}><Download className="size-4"/>{busy === "zip" ? "Descargando..." : "Descargar todo (.zip)"}</Button></div>
+    </div><Button disabled={!pdfs.length || busy !== null} title={pdfs.length ? undefined : "No hay PDF para descargar"} onClick={() => run("zip", () => descargarZipPdf(job.id, pdfs.map(p => p.nombre)))}><Download className="size-4"/>{busy === "zip" ? "Descargando..." : `Descargar PDF (.zip)`}</Button></div>
     {error && <p className="mt-3 text-xs text-destructive">{error}</p>}</section>
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
       <section className="glass-panel overflow-hidden rounded-xl"><div className="border-b border-border p-5"><h3 className="font-bold">Materiales generados</h3><p className="text-sm text-muted-foreground">{pdfs.length} PDF · {mds.length} Markdown</p></div>{!pdfs.length && job.archivos.length > 0 && <div className="mx-5 mt-4 rounded-lg border border-warning/25 bg-warning-soft p-3 text-xs text-muted-foreground"><CircleAlert className="mr-1 inline size-3 text-warning"/>El servidor no generó PDF para este trabajo; solo hay archivos Markdown. Revisa el log del backend: la conversión a PDF requiere las librerías <b>markdown</b> y <b>weasyprint</b>.</div>}
