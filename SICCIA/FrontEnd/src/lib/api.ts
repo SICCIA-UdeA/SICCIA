@@ -92,3 +92,32 @@ export function descargarZip(id: string) {
 export function descargarArchivo(id: string, nombre: string) {
   return descargarBlob(`/orquestador/cursos/${encodeURIComponent(id)}/archivos/${encodeURIComponent(nombre)}`, nombre);
 }
+
+// --- Autenticación con Google (BackEnd/controller/auth_controller.py) ---
+export type Usuario = { id: string; name: string | null; email: string | null; picture: string | null };
+
+type RespuestaMe = { authenticated: boolean } & Partial<Usuario>;
+
+export async function usuarioActual(signal?: AbortSignal): Promise<Usuario | null> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/auth/me`, { credentials: "include", signal: signal ?? null });
+  } catch {
+    throw new ApiError("No se pudo conectar con el backend. Verifica que esté corriendo en el puerto 8080.", 0);
+  }
+  if (res.status === 401) return null;
+  if (!res.ok) throw await leerError(res);
+  const body = (await res.json()) as RespuestaMe;
+  if (!body.authenticated || !body.id) return null;
+  return { id: body.id, name: body.name ?? null, email: body.email ?? null, picture: body.picture ?? null };
+}
+
+export const urlLoginGoogle = () => `${BASE}/auth/google`;
+
+export async function cerrarSesion() {
+  try {
+    await fetch(`${BASE}/auth/logout`, { credentials: "include" });
+  } catch {
+    // Si el backend no responde, la sesión local se limpia igual.
+  }
+}
