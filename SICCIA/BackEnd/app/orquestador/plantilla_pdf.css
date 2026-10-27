@@ -1,0 +1,68 @@
+/* Diseño de los PDF de SICCIA. Editar aquí, no en el código. */
+@page {
+  size: A4;
+  margin: 2.2cm 2cm 2.4cm 2cm;
+  @bottom-left { content: "SICCIA"; font-family: "DejaVu Sans", sans-serif; font-size: 8pt; color: #9ca3af; }
+  @bottom-right { content: counter(page) " / " counter(pages); font-family: "DejaVu Sans", sans-serif; font-size: 8pt; color: #9ca3af; }
+}
+
+body {
+  font-family: "Inter", "Source Sans 3", "Liberation Sans", "DejaVu Sans", sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.55;
+  color: #1f2937;
+  margin: 0;
+}
+
+h1 {
+  font-size: 22pt; font-weight: 700; color: #0f3d66;
+  margin: 0 0 0.6em 0; padding-bottom: 8px;
+  border-bottom: 3px solid #0e7490;
+}
+h2 {
+  font-size: 15pt; font-weight: 700; color: #0f3d66;
+  margin: 1.6em 0 0.6em 0; padding: 4px 0 4px 10px;
+  border-left: 4px solid #0e7490;
+  page-break-after: avoid;
+}
+h3 { font-size: 12pt; font-weight: 700; color: #0e7490; margin: 1.3em 0 0.4em 0; page-break-after: avoid; }
+h4 { font-size: 10.5pt; font-weight: 700; color: #374151; margin: 1em 0 0.3em 0; page-break-after: avoid; }
+
+p { margin: 0 0 0.7em 0; orphans: 3; widows: 3; }
+ul, ol { margin: 0 0 0.8em 0; padding-left: 1.3em; }
+li { margin-bottom: 0.25em; }
+li::marker { color: #0e7490; }
+strong { color: #0f3d66; font-weight: 700; }
+hr { border: 0; border-top: 1px solid #e5e7eb; margin: 1.4em 0; }
+a { color: #0e7490; text-decoration: none; }
+
+blockquote {
+  margin: 0.9em 0; padding: 8px 14px;
+  background: #f0f9ff; border-left: 4px solid #0e7490; border-radius: 4px;
+  color: #1e3a5f;
+}
+blockquote p { margin: 0; }
+
+code {
+  font-family: "DejaVu Sans Mono", monospace; font-size: 9pt;
+  background: #eef2f7; color: #1e3a5f; padding: 1px 4px; border-radius: 3px;
+}
+pre {
+  font-family: "DejaVu Sans Mono", monospace; font-size: 8.8pt; line-height: 1.45;
+  background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 6px;
+  padding: 10px 12px; white-space: pre-wrap; word-wrap: break-word;
+  page-break-inside: avoid;
+}
+pre code { background: none; padding: 0; color: inherit; }
+
+table { width: 100%; border-collapse: collapse; margin: 0.8em 0 1.1em 0; font-size: 9.2pt; }
+thead { display: table-header-group; }
+th {
+  background: #0f3d66; color: #ffffff; text-align: left; font-weight: 700;
+  padding: 7px 9px; border: 1px solid #0f3d66;
+}
+td { padding: 6px 9px; border: 1px solid #d1d5db; vertical-align: top; }
+tbody tr:nth-child(even) td { background: #f8fafc; }
+tr { page-break-inside: avoid; }
+
+img { display: block; max-width: 100%; height: auto; margin: 1em auto 0.3em auto; border-radius: 6px; }
