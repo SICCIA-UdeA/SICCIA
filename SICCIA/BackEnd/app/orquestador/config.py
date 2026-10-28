@@ -10,7 +10,7 @@ Variables:
     ORQ_BASE_URL     solo openai_like (p. ej. endpoint compatible con OpenAI)
     ORQ_TEMPERATURA  defecto 0.4
     ORQ_MAX_TOKENS   máximo de tokens generados por llamada (defecto: 16384)
-    ORQ_TIMEOUT_SEGUNDOS tiempo máximo por llamada al modelo (defecto: 120)
+    ORQ_TIMEOUT_SEGUNDOS tiempo máximo por llamada al modelo (defecto: 900)
     ORQ_DIR_SALIDA   carpeta donde se guardan los trabajos   (defecto: orquestador_salida)
 
 Ejemplo: ORQ_PROVEEDOR=gemini y ORQ_MODEL_ID_EVALUACION=gemini-2.5-pro
@@ -60,7 +60,7 @@ def config_modelo(rol: str) -> ConfigModelo:
         base_url=_env("BASE_URL", rol),
         temperatura=float(_env("TEMPERATURA", rol) or 0.4),
         max_tokens=int(_env("MAX_TOKENS", rol) or 16384),
-        timeout_segundos=float(_env("TIMEOUT_SEGUNDOS", rol) or 120),
+        timeout_segundos=float(_env("TIMEOUT_SEGUNDOS", rol) or 900),
     )
 
 
