@@ -18,7 +18,10 @@ export default defineConfig({
         // Reenvía /api/* al backend (FastAPI + Flask en el puerto 8080) sin requerir CORS.
         "/api": {
           target: process.env["BACKEND_URL"] ?? "http://127.0.0.1:8080",
-          changeOrigin: true,
+          // Flask arma la redirect_uri de Google con este Host; debe coincidir con la registrada
+          // en Google Cloud (http://localhost:8080/auth/google/callback) y con el host del front.
+          changeOrigin: false,
+          headers: { host: process.env["BACKEND_HOST"] ?? "localhost:8080" },
           rewrite: (path) => path.replace(/^\/api/, ""),
         },
       },

@@ -2,6 +2,7 @@
 // En desarrollo las llamadas van a "/api" y el proxy de Vite las reenvía al backend,
 // así se evita CORS (el backend no lo tiene configurado).
 import type { Configurador } from "./configurador";
+import { crearZip } from "./zip";
 
 const BASE = (import.meta.env["VITE_API_URL"] as string | undefined)?.replace(/\/$/, "") || "/api";
 
@@ -77,7 +78,11 @@ async function descargarBlob(ruta: string, nombre: string) {
     throw new ApiError("No se pudo conectar con el backend.", 0);
   }
   if (!res.ok) throw await leerError(res);
-  const url = URL.createObjectURL(await res.blob());
+  guardarBlob(await res.blob(), nombre);
+}
+
+function guardarBlob(blob: Blob, nombre: string) {
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = nombre;
@@ -85,10 +90,55 @@ async function descargarBlob(ruta: string, nombre: string) {
   URL.revokeObjectURL(url);
 }
 
-export function descargarZip(id: string) {
-  return descargarBlob(`/orquestador/cursos/${encodeURIComponent(id)}/descarga`, `curso_${id.slice(0, 8)}.zip`);
+// Arma el .zip en el navegador solo con los PDF, descargando cada uno desde
+// /orquestador/cursos/{id}/archivos/{nombre}. No usa el endpoint /descarga del backend,
+// que empaqueta también los .md.
+export async function descargarZipPdf(id: string, nombres: string[]) {
+  if (!nombres.length) throw new ApiError("El trabajo no tiene archivos PDF para descargar.", 404);
+  const entradas = await Promise.all(
+    nombres.map(async (nombre) => {
+      let res: Response;
+      try {
+        res = await fetch(`${BASE}/orquestador/cursos/${encodeURIComponent(id)}/archivos/${encodeURIComponent(nombre)}`, { credentials: "include" });
+      } catch {
+        throw new ApiError("No se pudo conectar con el backend.", 0);
+      }
+      if (!res.ok) throw await leerError(res);
+      return { nombre, datos: new Uint8Array(await res.arrayBuffer()) };
+    }),
+  );
+  guardarBlob(crearZip(entradas), `curso_${id.slice(0, 8)}.zip`);
 }
 
 export function descargarArchivo(id: string, nombre: string) {
   return descargarBlob(`/orquestador/cursos/${encodeURIComponent(id)}/archivos/${encodeURIComponent(nombre)}`, nombre);
+}
+
+// --- Autenticación con Google (BackEnd/controller/auth_controller.py) ---
+export type Usuario = { id: string; name: string | null; email: string | null; picture: string | null };
+
+type RespuestaMe = { authenticated: boolean } & Partial<Usuario>;
+
+export async function usuarioActual(signal?: AbortSignal): Promise<Usuario | null> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/auth/me`, { credentials: "include", signal: signal ?? null });
+  } catch {
+    throw new ApiError("No se pudo conectar con el backend. Verifica que esté corriendo en el puerto 8080.", 0);
+  }
+  if (res.status === 401) return null;
+  if (!res.ok) throw await leerError(res);
+  const body = (await res.json()) as RespuestaMe;
+  if (!body.authenticated || !body.id) return null;
+  return { id: body.id, name: body.name ?? null, email: body.email ?? null, picture: body.picture ?? null };
+}
+
+export const urlLoginGoogle = () => `${BASE}/auth/google`;
+
+export async function cerrarSesion() {
+  try {
+    await fetch(`${BASE}/auth/logout`, { credentials: "include" });
+  } catch {
+    // Si el backend no responde, la sesión local se limpia igual.
+  }
 }
