@@ -11,12 +11,13 @@ Mantener la configuración separada del resto del código permite:
 """
 
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 # Carga las variables definidas en el archivo .env al entorno del proceso.
 # Debe ejecutarse antes de leer cualquier os.environ / os.getenv.
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 
 class Config:

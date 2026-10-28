@@ -132,6 +132,9 @@ const durationLabels: Record<string, string> = { corto: "4-6 horas", largo: "12-
 const viaLabels: Record<string, string> = { evaluacion: "Evaluación", contenido: "Contenido", programa: "Programa" };
 const estadoLabels: Record<EstadoTrabajo, string> = { pendiente: "Pendiente", planificando: "Planificando", ejecutando: "Ejecutando", completado: "Generación completada", completado_con_errores: "Completado con errores", error: "Error" };
 const POLL_MS = 1500;
+// Las vías pueden reintentar hasta tres llamadas de 180 s al proveedor.
+// El frontend debe seguir consultando mientras el backend aún procesa el trabajo.
+const MAX_POLL_MS = 60 * 60 * 1000;
 const aiTasks: Array<{ task: string; options: Array<{ name: string; note: string; halluc: string; cost: string }> }> = [
   { task: "Programa del curso", options: [
     { name: "ChatGPT", note: "Prompt simple, texto plano", halluc: "No reportada", cost: "Segundos" },
@@ -189,10 +192,15 @@ function Generator({ onComplete }: { onComplete: (job: TrabajoRespuesta, config:
     if (!jobId) return;
     const ctrl = new AbortController();
     let timer: number | undefined;
+    const startedAt = Date.now();
     const tick = async () => {
       try {
         const t = await estadoCurso(jobId, ctrl.signal);
         setJob(t);
+        if (Date.now() - startedAt >= MAX_POLL_MS && !ESTADOS_FINALES.includes(t.estado)) {
+          setApiError("El trabajo tardó demasiado. Revisa el backend y vuelve a intentarlo.");
+          return;
+        }
         if (!ESTADOS_FINALES.includes(t.estado)) { timer = window.setTimeout(tick, POLL_MS); return; }
         if (t.estado !== "error" && sentConfig.current) { const cfg = sentConfig.current; timer = window.setTimeout(() => onCompleteRef.current(t, cfg), 450); }
       } catch (e) {
@@ -290,8 +298,15 @@ function Result({ go, job, config }: { go: (v: View) => void; job: TrabajoRespue
   const [error, setError] = useState<string | null>(null);
   if (!job || !config) return <section className="glass-panel mx-auto max-w-xl rounded-xl p-8 text-center"><p className="text-sm text-muted-foreground">No hay un curso generado en esta sesión.</p><Button className="mt-4" onClick={() => go("generator")}>Generar curso</Button></section>;
   const run = async (key: string, fn: () => Promise<void>) => { setBusy(key); setError(null); try { await fn(); } catch (e) { setError(e instanceof Error ? e.message : "Error al descargar"); } finally { setBusy(null); } };
-  const byVia = Object.keys(viaLabels).map(v => ({ via: v, files: job.archivos.filter(a => a.via === v) }));
-  const otros = job.archivos.filter(a => !(a.via in viaLabels));
+  const pdfs = job.archivos.filter(a => a.nombre.endsWith(".pdf"));
+  const archivosDescargables = pdfs.length
+    ? pdfs.map(pdf => ({
+        ...pdf,
+        via: job.archivos.find(a => a.nombre === pdf.nombre.replace(/\.pdf$/, ".md"))?.via ?? pdf.via,
+      }))
+    : job.archivos;
+  const byVia = Object.keys(viaLabels).map(v => ({ via: v, files: archivosDescargables.filter(a => a.via === v) }));
+  const otros = archivosDescargables.filter(a => !(a.via in viaLabels));
   if (otros.length) byVia.push({ via: "otros", files: otros });
   const ok = job.estado === "completado";
   const c = config.contenido;
@@ -303,7 +318,7 @@ function Result({ go, job, config }: { go: (v: View) => void; job: TrabajoRespue
     </div><Button disabled={!job.archivos.length || busy !== null} onClick={() => run("zip", () => descargarZip(job.id))}><Download className="size-4"/>{busy === "zip" ? "Descargando..." : "Descargar todo (.zip)"}</Button></div>
     {error && <p className="mt-3 text-xs text-destructive">{error}</p>}</section>
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <section className="glass-panel overflow-hidden rounded-xl"><div className="border-b border-border p-5"><h3 className="font-bold">Materiales generados</h3><p className="text-sm text-muted-foreground">{job.archivos.length} archivo(s) Markdown listos para revisión.</p></div>
+      <section className="glass-panel overflow-hidden rounded-xl"><div className="border-b border-border p-5"><h3 className="font-bold">Materiales generados</h3><p className="text-sm text-muted-foreground">{archivosDescargables.length} archivo(s) PDF listos para descargar.</p></div>
         {byVia.filter(g => g.files.length).map(g => <div key={g.via} className="border-b border-border p-4 last:border-0"><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{viaLabels[g.via] ?? "Otros"}</p><div className="space-y-2">{g.files.map(f => <div key={f.nombre} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-border bg-surface p-3"><span className="grid size-8 place-items-center rounded-md bg-primary-soft text-primary"><FileText className="size-4"/></span><div className="min-w-0"><p className="truncate text-sm">{f.nombre}</p><p className="text-xs text-muted-foreground">{(f.tamano_bytes / 1024).toFixed(1)} KB</p></div><Button size="sm" variant="secondary" disabled={busy !== null} onClick={() => run(f.nombre, () => descargarArchivo(job.id, f.nombre))}><Download className="size-4"/><span className="hidden sm:inline">{busy === f.nombre ? "..." : "Descargar"}</span></Button></div>)}</div></div>)}
         {!job.archivos.length && <p className="p-5 text-sm text-muted-foreground">El trabajo no generó archivos.</p>}
       </section>

@@ -67,9 +67,11 @@ class OrquestadorController:
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
             for nombre, archivo in trabajo.archivos.items():
+                if not nombre.endswith(".pdf"):
+                    continue
                 ruta = trabajo.dir_resultados / nombre
                 if ruta.exists():
-                    zf.write(ruta, arcname=nombre)  # lee desde disco: sirve para .md y .pdf
+                    zf.write(ruta, arcname=nombre)
                 else:
                     zf.writestr(nombre, archivo.contenido)
         return Response(

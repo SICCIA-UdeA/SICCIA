@@ -160,7 +160,8 @@ class Orquestador:
             return True
         except Exception as exc:  # noqa: BLE001
             log.exception("Vía %s falló en el trabajo %s", via.rol, trabajo.id)
-            trabajo.vias[via.rol] = f"error: {exc}"
+            detalle = str(exc) or type(exc).__name__
+            trabajo.vias[via.rol] = f"error: {detalle}"
             return False
 
     @staticmethod

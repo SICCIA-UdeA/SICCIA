@@ -42,7 +42,14 @@ class Planificador:
         prompt = self._prompt(config, faltantes)
         ultimo_error: Exception | None = None
         for intento in (1, 2):
-            texto = await self._ejecutor.generar(rol=self.rol, instrucciones=_INSTRUCCIONES, prompt=prompt)
+            try:
+                texto = await self._ejecutor.generar(
+                    rol=self.rol, instrucciones=_INSTRUCCIONES, prompt=prompt
+                )
+            except Exception as exc:
+                raise RuntimeError(f"El proveedor del planificador no respondió: {exc}") from exc
+            if self._es_error_proveedor(texto):
+                raise RuntimeError(f"El proveedor del planificador devolvió un error: {texto.strip()}")
             try:
                 return self._fusionar(config, self._parsear(texto))
             except (ValueError, ValidationError) as exc:
@@ -50,6 +57,14 @@ class Planificador:
                 log.warning("Planificador: respuesta inválida (intento %s): %s", intento, exc)
                 prompt += "\n\nTu respuesta anterior no fue un JSON válido con ese formato. Corrígela."
         raise RuntimeError(f"El planificador no devolvió un plan válido: {ultimo_error}")
+
+    @staticmethod
+    def _es_error_proveedor(texto: str) -> bool:
+        texto_normalizado = texto.lower()
+        return any(
+            indicador in texto_normalizado
+            for indicador in ("rate limit", "free-models-per-day", "429", "provider returned error")
+        )
 
     # ------------------------------------------------------------------ helpers
     @staticmethod
@@ -101,10 +116,17 @@ class Planificador:
 
     @staticmethod
     def _parsear(texto: str) -> CursoPlan:
-        ini, fin = texto.find("{"), texto.rfind("}")
-        if ini == -1 or fin <= ini:
-            raise ValueError("no se encontró un objeto JSON en la respuesta")
-        return CursoPlan.model_validate(json.loads(texto[ini : fin + 1]))
+        decoder = json.JSONDecoder()
+        for posicion, caracter in enumerate(texto):
+            if caracter != "{":
+                continue
+            try:
+                objeto, _ = decoder.raw_decode(texto[posicion:])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(objeto, dict):
+                return CursoPlan.model_validate(objeto)
+        raise ValueError("no se encontró un objeto JSON válido en la respuesta")
 
     @staticmethod
     def _fusionar(c: Configurador, plan: CursoPlan) -> CursoPlan:

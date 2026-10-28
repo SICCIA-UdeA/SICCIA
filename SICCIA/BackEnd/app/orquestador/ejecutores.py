@@ -15,7 +15,7 @@ import json
 import logging
 from typing import Protocol
 
-from .config import ConfigModelo, config_modelo
+from .config import ConfigModelo, clave_google, config_modelo
 
 _MARCADOR = re.compile(r"<!--\s*ARCHIVO:\s*([A-Za-z0-9_\-.]+)\s*-->")
 log = logging.getLogger(__name__)
@@ -93,20 +93,26 @@ class EjecutorAgno:
         if cfg.proveedor == "gemini":
             from agno.models.google import Gemini
             kwargs = {"id": cfg.model_id, "temperature": cfg.temperatura}
-            if cfg.api_key:
-                kwargs["api_key"] = cfg.api_key
+            api_key = clave_google() or cfg.api_key
+            if api_key:
+                kwargs["api_key"] = api_key
             return Gemini(**kwargs)
             
         if cfg.proveedor == "openai_like":
             from agno.models.openai.like import OpenAILike
             return OpenAILike(
                 id=cfg.model_id, api_key=cfg.api_key, base_url=cfg.base_url,
-                temperature=cfg.temperatura,
+                temperature=cfg.temperatura, max_tokens=cfg.max_tokens,
             )
             
         if cfg.proveedor == "openai":
             from agno.models.openai import OpenAIChat
-            return OpenAIChat(id=cfg.model_id, api_key=cfg.api_key, temperature=cfg.temperatura)
+            return OpenAIChat(
+                id=cfg.model_id,
+                api_key=cfg.api_key,
+                temperature=cfg.temperatura,
+                max_tokens=cfg.max_tokens,
+            )
             
         raise ValueError(f"Proveedor de modelo no soportado: {cfg.proveedor!r}")
 
@@ -119,18 +125,32 @@ class EjecutorAgno:
         
         for intento in range(1, intentos_maximos + 1):
             try:
+                opciones_agente = {}
+                if rol == "planificador":
+                    from .schemas import CursoPlan
+
+                    opciones_agente = {
+                        "output_schema": CursoPlan,
+                        "use_json_mode": True,
+                    }
                 agente = Agent(
                     name=rol, 
                     model=modelo_actual, 
                     instructions=instrucciones, 
-                    markdown=True
+                    markdown=True,
+                    **opciones_agente,
                 )
                 
                 t0 = time.time()
-                respuesta = await agente.arun(prompt)
+                respuesta = await asyncio.wait_for(
+                    agente.arun(prompt),
+                    timeout=self._cfg.timeout_segundos,
+                )
                 t1 = time.time()
                 
                 contenido = respuesta.content if hasattr(respuesta, "content") else str(respuesta)
+                if hasattr(contenido, "model_dump_json"):
+                    contenido = contenido.model_dump_json()
                 if not isinstance(contenido, str):
                     contenido = str(contenido)
                     
@@ -169,12 +189,13 @@ class EjecutorAgno:
                     log.warning(f"[{rol}] Intento {intento} falló ({exc}). Reintentando en {tiempo_espera}s...")
                     await asyncio.sleep(tiempo_espera)
                     
-                    # 3. FALLBACK: Si es el último reintento, saltar al salvavidas
-                    if intento == intentos_maximos - 1:
-                        log.warning(f"[{rol}] Agotando recursos. Cambiando a modelo de respaldo: gemini-2.5-flash")
+                    # El fallback solo aplica a Gemini; no debe cambiar
+                    # silenciosamente un proveedor openai_like u openai.
+                    if intento == intentos_maximos - 1 and self._cfg.proveedor == "gemini":
+                        log.warning(f"[{rol}] Agotando recursos. Cambiando a modelo de respaldo: gemini-3.8-flash")
                         from agno.models.google import Gemini
-                        fallback_key = os.getenv("GOOGLE_API_KEY")
-                        modelo_actual = Gemini(id="gemini-2.5-flash", api_key=fallback_key)
+                        fallback_key = clave_google()
+                        modelo_actual = Gemini(id="gemini-3.8-flash", api_key=fallback_key)
                 else:
                     log.error(f"[{rol}] Fallo definitivo tras {intentos_maximos} intentos.")
                     raise exc # Lanza el error para que orquestador.py atrape el fallo de esta vía

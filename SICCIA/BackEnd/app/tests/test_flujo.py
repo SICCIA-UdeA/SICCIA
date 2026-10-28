@@ -31,7 +31,7 @@ def test_flujo_completo_con_mock(tmp_path):
         assert r.status_code == 202
         trabajo_id = r.json()["id"]
 
-        for _ in range(100):
+        for _ in range(1200):
             estado = cliente.get(f"/orquestador/cursos/{trabajo_id}").json()
             if estado["estado"] not in ("pendiente", "planificando", "ejecutando"):
                 break
@@ -56,6 +56,8 @@ def test_auth_y_orquestador_comparten_servidor(monkeypatch, tmp_path):
     monkeypatch.setattr(Config, "GOOGLE_CLIENT_ID", "test-client")
     monkeypatch.setattr(Config, "GOOGLE_CLIENT_SECRET", "test-secret")
     monkeypatch.setenv("ORQ_PROVEEDOR", "mock")
+    for rol in ("PLANIFICADOR", "EVALUACION", "CONTENIDO", "PROGRAMA", "VERIFICACION"):
+        monkeypatch.setenv(f"ORQ_PROVEEDOR_{rol}", "mock")
     monkeypatch.setenv("ORQ_DIR_SALIDA", str(tmp_path))
 
     with TestClient(crear_backend_app()) as cliente:
@@ -67,7 +69,7 @@ def test_auth_y_orquestador_comparten_servidor(monkeypatch, tmp_path):
         assert inicio.status_code == 202
         trabajo_id = inicio.json()["id"]
 
-        for _ in range(100):
+        for _ in range(1200):
             estado = cliente.get(f"/orquestador/cursos/{trabajo_id}").json()
             if estado["estado"] not in ("pendiente", "planificando", "ejecutando"):
                 break
@@ -85,13 +87,41 @@ async def test_plantilla_madre_contiene_estructura():
     assert config.datos.publico_objetivo in madre  # lo dado por el usuario se conserva
 
 
+def test_planificador_parsea_json_entre_texto():
+    plan = Planificador._parsear(
+        'Aquí está el plan:\n```json\n{"tema":"Python","publico_objetivo":"Docentes",'
+        '"duracion_estimada":"10 horas","metodologia":"Práctica",'
+        '"modulos":[{"titulo":"Bases","temas":["Variables"]}]}\n```\n'
+    )
+    assert plan.modulos[0].temas == ["Variables"]
+
+
+def test_planificador_detecta_error_del_proveedor_en_el_contenido():
+    assert Planificador._es_error_proveedor(
+        "Error code: 429 - Rate limit exceeded: free-models-per-day"
+    )
+
+
+@pytest.mark.asyncio
+async def test_planificador_no_disfraza_error_del_proveedor():
+    class EjecutorFallido:
+        es_simulado = False
+
+        async def generar(self, *, rol, instrucciones, prompt):
+            raise ValueError("429: rate limit")
+
+    config = Configurador.model_validate(EJEMPLO)
+    with pytest.raises(RuntimeError, match="proveedor.*429: rate limit"):
+        await Planificador(EjecutorFallido()).completar(config)
+
+
 def test_pdf_se_descarga_como_pdf_y_entra_al_zip(tmp_path):
     import io
     import zipfile
 
     with _cliente(tmp_path) as cliente:
         trabajo_id = cliente.post("/orquestador/cursos", json=EJEMPLO).json()["id"]
-        for _ in range(200):
+        for _ in range(1200):
             estado = cliente.get(f"/orquestador/cursos/{trabajo_id}").json()
             if estado["estado"] not in ("pendiente", "planificando", "ejecutando"):
                 break
@@ -108,4 +138,5 @@ def test_pdf_se_descarga_como_pdf_y_entra_al_zip(tmp_path):
         z = cliente.get(f"/orquestador/cursos/{trabajo_id}/descarga")
         assert z.status_code == 200
         with zipfile.ZipFile(io.BytesIO(z.content)) as zf:
+            assert all(nombre.endswith(".pdf") for nombre in zf.namelist())
             assert zf.read(pdfs[0])[:4] == b"%PDF"
