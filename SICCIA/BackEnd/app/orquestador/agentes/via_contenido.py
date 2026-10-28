@@ -80,6 +80,8 @@ no los incluyas.
 - `## Módulo N: <título>` con una breve introducción del módulo.
 - `### N.M <título del tema>` por cada tema, con: objetivos de aprendizaje, explicación desarrollada
   (conceptos, definiciones, procedimientos) y puntos clave. Añade el ejemplo práctico si está activado.
+- En cada tema incluye una línea `Duración sugerida: X-Y horas` usando exactamente la tabla común.
+  Esa línea es informativa y no debe sumarse de nuevo a la duración total.
 - Al final de cada módulo, en este orden: el taller de práctica y el cierre del módulo, si están activados.
 - Usa listas y tablas simples; evita HTML.
 """

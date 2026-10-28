@@ -12,7 +12,7 @@ from app.server import crear_app as crear_backend_app
 from controller.orquestador_controller import OrquestadorController
 from app.orquestador import Configurador, Orquestador
 from app.orquestador.ejecutores import EjecutorMock
-from app.orquestador.plantillas import construir_plantilla_madre
+from app.orquestador.plantillas import construir_plantilla_madre, distribucion_horaria
 from app.orquestador.planificador import Planificador
 
 EJEMPLO = json.loads((Path(__file__).parent.parent / "ejemplo_configurador.json").read_text(encoding="utf-8"))
@@ -85,6 +85,31 @@ async def test_plantilla_madre_contiene_estructura():
     madre = construir_plantilla_madre(plan)
     assert "### Módulo 4" in madre and "4.3." in madre
     assert config.datos.publico_objetivo in madre  # lo dado por el usuario se conserva
+
+
+@pytest.mark.asyncio
+async def test_distribucion_horaria_reparte_y_conserva_totales():
+    config = Configurador.model_validate(EJEMPLO)
+    plan = await Planificador(EjecutorMock()).completar(config)
+
+    tabla = distribucion_horaria(plan)
+
+    assert "| **TOTAL** | | **30** | **30** |" in tabla
+    assert tabla.count("| Módulo") == sum(len(m.temas) for m in plan.modulos) + 1
+    assert "## Distribución horaria común y obligatoria" in construir_plantilla_madre(plan)
+
+
+def test_distribucion_horaria_acepta_rango_y_no_repite_duracion_por_tema():
+    config = Configurador.model_validate(EJEMPLO)
+    config.datos.duracion_estimada = "12-16 horas"
+    plan = Planificador._plan_simulado(config).model_copy(
+        update={"duracion_estimada": config.datos.duracion_estimada}
+    )
+
+    tabla = distribucion_horaria(plan)
+
+    assert "| **TOTAL** | | **12** | **16** |" in tabla
+    assert tabla.count("| **TOTAL**") == 1
 
 
 def test_planificador_parsea_json_entre_texto():

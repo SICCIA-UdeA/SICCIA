@@ -62,11 +62,13 @@ otro agente lo hace. Tú solo evalúas lo que la estructura de la plantilla base
 1. Si las indicaciones son vagas (por ejemplo, solo "exámenes"), completa lo que falte con criterio
    pedagógico y explica brevemente tus decisiones al inicio del documento.
 2. Distribuye las actividades para cubrir todos los módulos y temas, indicando qué módulos evalúa cada una.
-3. Los exámenes usan solo los tipos de pregunta indicados (si los hay). Incluye la respuesta correcta
+3. Usa la distribución horaria común para que la carga de las actividades sea razonable. Incluye
+   una tabla breve con la dedicación estimada de cada actividad, sin superar el total del curso.
+4. Los exámenes usan solo los tipos de pregunta indicados (si los hay). Incluye la respuesta correcta
    y una breve justificación de cada pregunta en el solucionario.
-4. Las actividades que no son examen (laboratorios, investigaciones, talleres, etc.) llevan: objetivo,
+5. Las actividades que no son examen (laboratorios, investigaciones, talleres, etc.) llevan: objetivo,
    enunciado, entregables, criterios de evaluación y rúbrica con puntajes.
-5. Adapta dificultad y lenguaje al público objetivo y a la metodología de la plantilla base.
+6. Adapta dificultad y lenguaje al público objetivo y a la metodología de la plantilla base.
 
 ## Estructura del documento `evaluaciones.md`
 1. `# Evaluaciones del curso`

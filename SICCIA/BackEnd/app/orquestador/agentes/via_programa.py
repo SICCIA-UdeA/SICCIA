@@ -31,7 +31,9 @@ Incluye, en este orden:
    acorde al público objetivo.
 6. `## Metodología de aprendizaje`: cómo se aplica la metodología indicada a lo largo del curso.
 7. `## Contenido programático`: cada módulo con sus temas (solo títulos) y una línea con el propósito del módulo.
-8. `## Distribución sugerida del tiempo`: tabla por módulo, proporcional a la duración estimada.
+8. `## Distribución sugerida del tiempo`: copia la tabla de distribución horaria común, con una fila
+por tema y una fila de total. La suma de horas mínimas y máximas debe coincidir exactamente con sus
+totales; no repitas el total del curso en cada tema.
 9. `## Sistema de evaluación`: descríbelo en general, sin porcentajes ni cantidades (están en otro documento).
 
 ## Entregable 2: `presentaciones.md` (diapositivas)
@@ -44,5 +46,6 @@ Cada una lleva un título (`##`) y entre 3 y 6 viñetas cortas. Cuando convenga,
    `# Presentación N.M: <título del tema>` y con: portada, objetivos del tema, de 3 a 6 diapositivas con los
    conceptos clave, un ejemplo o caso, y una diapositiva final de resumen.
 
-Usa exactamente los títulos y la numeración de la plantilla base.
+Usa exactamente los títulos y la numeración de la plantilla base. En las presentaciones muestra
+la duración del tema solo cuando sea útil y usa el rango de horas de la tabla común.
 """
