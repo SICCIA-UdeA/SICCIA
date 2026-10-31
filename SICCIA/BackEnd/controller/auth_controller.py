@@ -1,6 +1,6 @@
 """Endpoints HTTP para autenticación con Google."""
 
-from flask import Blueprint, jsonify, redirect, session, url_for
+from flask import Blueprint, current_app, jsonify, redirect, session, url_for
 
 if __package__ == "controller":
     from app.services.google_auth import get_google_authorize_redirect, get_google_user_info
@@ -24,7 +24,9 @@ class AuthController:
 
     def login_google(self):
         """Inicia el flujo de autenticación redirigiendo a Google."""
-        redirect_uri = url_for("auth.google_callback", _external=True)
+        redirect_uri = current_app.config.get("GOOGLE_REDIRECT_URI") or url_for(
+            "auth.google_callback", _external=True
+        )
         return get_google_authorize_redirect(redirect_uri)
 
     def google_callback(self):

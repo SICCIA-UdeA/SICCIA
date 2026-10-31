@@ -30,6 +30,7 @@ class Config:
     # Credenciales de OAuth 2.0 / OpenID Connect obtenidas en Google Cloud Console.
     GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
     GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
+    GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI")
 
     # Documento de descubrimiento de OpenID Connect de Google.
     # Authlib lo usa para obtener automáticamente los endpoints de
@@ -57,9 +58,17 @@ class Config:
             "GOOGLE_CLIENT_SECRET": Config.GOOGLE_CLIENT_SECRET,
         }
         missing = [name for name, value in required.items() if not value]
-        if missing:
+        placeholders = [
+            name for name, value in required.items()
+            if value and (
+                value.startswith(("tu-", "cambia-"))
+                or value in {"...", "pon-aqui-la-clave"}
+            )
+        ]
+        if missing or placeholders:
+            problemas = missing + [f"{name} (valor de ejemplo)" for name in placeholders]
             raise RuntimeError(
                 "Faltan variables de entorno obligatorias: "
-                f"{', '.join(missing)}. Revisa tu archivo .env "
+                f"{', '.join(problemas)}. Revisa tu archivo .env "
                 "(puedes basarte en .env.example)."
             )

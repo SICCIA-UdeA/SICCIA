@@ -29,7 +29,8 @@ Incluye, en este orden:
 4. `## Objetivo general` y `## Objetivos específicos` (uno o más por módulo).
 5. `## Conocimientos previos requeridos`: lista concreta de lo que el estudiante debe saber antes de empezar,
    acorde al público objetivo.
-6. `## Metodología de aprendizaje`: cómo se aplica la metodología indicada a lo largo del curso.
+6. `## Metodología de aprendizaje`: explica el perfil pedagógico común, sus fases, el rol del estudiante,
+   el rol del docente y las evidencias que se producirán; no te limites a repetir el nombre.
 7. `## Contenido programático`: cada módulo con sus temas (solo títulos) y una línea con el propósito del módulo.
 8. `## Distribución sugerida del tiempo`: copia la tabla de distribución horaria común, con una fila
 por tema y una fila de total. La suma de horas mínimas y máximas debe coincidir exactamente con sus

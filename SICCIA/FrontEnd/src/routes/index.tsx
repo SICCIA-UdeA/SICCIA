@@ -7,6 +7,14 @@ import {
 import { useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { cerrarSesion, crearCurso, descargarArchivo, descargarZipPdf, ESTADOS_FINALES, estadoCurso, urlLoginGoogle, usuarioActual, type EstadoTrabajo, type TrabajoRespuesta, type Usuario } from "@/lib/api";
 import { type Configurador, construirConfigurador, MAX_MODULOS, MIN_TEMA, validarConfigurador } from "@/lib/configurador";
@@ -148,6 +156,39 @@ function UserAvatar({ user }: { user: Usuario }) {
   return <span className="grid size-8 place-items-center rounded-md bg-primary-soft text-xs font-bold text-primary">{initials(user)}</span>;
 }
 
+const credits = [
+  { name: "Juan Esteban Tobon Martinez", email: "esteban.tobon2@udea.edu.co" },
+  { name: "Steven Aguirre Giraldo", email: "steven.aguirreg@udea.edu.co" },
+  { name: "Luis Fernando Alvarez Padilla", email: "luis.alvarezp@udea.edu.co" },
+];
+
+function CreditsDialog() {
+  return <Dialog>
+    <DialogTrigger asChild>
+      <Button
+        className="text-xs text-muted-foreground"
+        variant="ghost"
+        size="sm"
+      >
+        Créditos
+      </Button>
+    </DialogTrigger>
+    <DialogContent className="max-w-md rounded-xl">
+      <DialogHeader>
+        <DialogTitle>Créditos del proyecto</DialogTitle>
+        <DialogDescription>Hecho por:</DialogDescription>
+      </DialogHeader>
+      <div className="grid gap-3">
+        {credits.map(({ name, email }) => <div key={email} className="rounded-lg border border-border bg-surface p-3">
+          <p className="font-semibold">{name}</p>
+          <a className="mt-1 block break-all text-sm text-primary hover:underline" href={`mailto:${email}`}>{email}</a>
+        </div>)}
+      </div>
+      <p className="border-t border-border pt-4 text-center text-sm font-semibold text-muted-foreground">Facultad de Ingeniería UdeA</p>
+    </DialogContent>
+  </Dialog>;
+}
+
 function AppShell(props: { user: Usuario; view: View; setView: (v: View) => void; mobileMenu: boolean; setMobileMenu: (v: boolean) => void; collapsed: boolean; setCollapsed: (v: boolean) => void; noticeOpen: boolean; setNoticeOpen: (v: boolean) => void; onLogout: () => void }) {
   const { user, view, setView, mobileMenu, setMobileMenu, collapsed, setCollapsed, noticeOpen, setNoticeOpen, onLogout } = props;
   const title = ({ dashboard: "Panel principal", courses: "Mis cursos", generator: "Generar nuevo curso", settings: "Información personal", result: "Curso generado" } as const)[view];
@@ -166,7 +207,7 @@ function AppShell(props: { user: Usuario; view: View; setView: (v: View) => void
       <header className="sticky top-0 z-20 grid h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-border bg-surface/80 px-4 backdrop-blur-xl sm:px-6">
         <Button className="lg:hidden" size="icon" variant="ghost" onClick={() => setMobileMenu(true)} aria-label="Abrir menú"><Menu className="size-5"/></Button>
         <div className="min-w-0"><h1 className="truncate text-base font-bold sm:text-lg">{title}</h1><p className="hidden truncate text-xs text-muted-foreground sm:block">Panel docente · Institución Educativa San Rafael</p></div>
-        <div className="relative flex shrink-0 items-center gap-2"><Button size="icon" variant="secondary" aria-label="Notificaciones" onClick={() => setNoticeOpen(!noticeOpen)}><Bell className="size-4"/><span className="absolute right-0 top-0 size-2 rounded-full bg-warning"/></Button><div className="flex items-center gap-2 rounded-lg border border-border bg-surface p-1 pr-2"><UserAvatar user={user}/><span className="hidden max-w-40 truncate text-sm font-semibold sm:inline">{shortName(user)}</span>{isDemo(user) && <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[10px] font-bold uppercase text-warning">Prueba</span>}</div>{noticeOpen && <div className="glass-panel absolute right-0 top-12 w-72 rounded-xl p-4"><p className="font-semibold">Notificaciones</p><p className="mt-3 rounded-lg bg-warning-soft p-3 text-xs text-muted-foreground">El curso de Fracciones tiene una observación de calidad pendiente.</p></div>}</div>
+        <div className="relative flex shrink-0 items-center gap-2"><CreditsDialog/><Button size="icon" variant="secondary" aria-label="Notificaciones" onClick={() => setNoticeOpen(!noticeOpen)}><Bell className="size-4"/><span className="absolute right-0 top-0 size-2 rounded-full bg-warning"/></Button><div className="flex items-center gap-2 rounded-lg border border-border bg-surface p-1 pr-2"><UserAvatar user={user}/><span className="hidden max-w-40 truncate text-sm font-semibold sm:inline">{shortName(user)}</span>{isDemo(user) && <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[10px] font-bold uppercase text-warning">Prueba</span>}</div>{noticeOpen && <div className="glass-panel absolute right-0 top-12 w-72 rounded-xl p-4"><p className="font-semibold">Notificaciones</p><p className="mt-3 rounded-lg bg-warning-soft p-3 text-xs text-muted-foreground">El curso de Fracciones tiene una observación de calidad pendiente.</p></div>}</div>
       </header>
       <main className="mx-auto max-w-6xl p-4 sm:p-6">{view === "dashboard" && <Dashboard go={go}/>} {view === "courses" && <Courses go={go}/>} {view === "generator" && <Generator onComplete={(t, c) => { setJob(t); setJobConfig(c); go("result"); }}/>} {view === "settings" && <SettingsView user={user}/>} {view === "result" && <Result go={go} job={job} config={jobConfig}/>}</main>
     </div>
@@ -192,6 +233,8 @@ const durationLabels: Record<string, string> = { corto: "4-6 horas", largo: "12-
 const viaLabels: Record<string, string> = { programa: "Programa", contenido: "Contenido", evaluacion: "Evaluación", verificacion: "Verificación" };
 const fileGroupLabels: Record<string, string> = { ...viaLabels, exportador: "Documentos PDF" };
 const viaStatusLabels: Record<string, string> = { pendiente: "Pendiente", en_curso: "En curso", completada: "Completada", omitida: "Omitida" };
+const viaCompletada = (estado?: string) => estado === "completada" || estado?.startsWith("completada (") === true;
+const viaStatusLabel = (estado: string) => viaCompletada(estado) ? "Completada" : viaStatusLabels[estado] ?? estado;
 const isPdf = (nombre: string) => nombre.toLowerCase().endsWith(".pdf");
 const formatSize = (bytes: number) => bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${(bytes / 1024).toFixed(1)} KB`;
 const estadoLabels: Record<EstadoTrabajo, string> = { pendiente: "Pendiente", planificando: "Planificando", ejecutando: "Ejecutando", completado: "Generación completada", completado_con_errores: "Completado con errores", error: "Error" };
@@ -299,7 +342,7 @@ function Generator({ onComplete }: { onComplete: (job: TrabajoRespuesta, config:
   const stepState = (key: string): "done" | "active" | "wait" | "fail" => {
     if (key === "plan") return !job || job.estado === "pendiente" ? "wait" : job.estado === "planificando" ? "active" : job.estado === "error" && !Object.keys(job.vias).length ? "fail" : "done";
     const v = job?.vias[key];
-    return !v || v === "pendiente" || v === "omitida" ? "wait" : v === "en_curso" ? "active" : v === "completada" ? "done" : "fail";
+    return !v || v === "pendiente" || v === "omitida" ? "wait" : v === "en_curso" ? "active" : viaCompletada(v) ? "done" : "fail";
   };
   const phases: Array<[string, string]> = [["plan", "Planificación del curso"], ...viaKeys.map(k => [k, `Vía ${viaLabels[k] ?? k}`] as [string, string])];
   const failed = apiError ?? (job?.estado === "error" ? job.error ?? "La generación falló." : null);
@@ -385,7 +428,7 @@ function Result({ go, job, config }: { go: (v: View) => void; job: TrabajoRespue
         {!job.archivos.length && <p className="p-5 text-sm text-muted-foreground">El trabajo no generó archivos.</p>}
       </section>
       <aside className="space-y-4">
-        <section className="glass-panel rounded-xl p-5"><h3 className="font-bold">Vías de trabajo</h3><div className="mt-4 space-y-3 text-sm">{Object.entries(job.vias).map(([v, s]) => <div key={v} className="flex items-start justify-between gap-3"><span className="text-muted-foreground">{viaLabels[v] ?? v}</span><b className={cn("text-right", s === "completada" ? "text-success" : s === "omitida" || s === "pendiente" ? "text-muted-foreground" : s === "en_curso" ? "text-primary" : "text-destructive")}>{viaStatusLabels[s] ?? s}</b></div>)}</div><p className="mt-4 text-xs text-muted-foreground">Trabajo {job.id.slice(0, 8)} · {new Date(job.creado_en).toLocaleString("es-CO")}</p></section>
+        <section className="glass-panel rounded-xl p-5"><h3 className="font-bold">Vías de trabajo</h3><div className="mt-4 space-y-3 text-sm">{Object.entries(job.vias).map(([v, s]) => <div key={v} className="flex items-start justify-between gap-3"><span className="text-muted-foreground">{viaLabels[v] ?? v}</span><b className={cn("text-right", viaCompletada(s) ? "text-success" : s === "omitida" || s === "pendiente" ? "text-muted-foreground" : s === "en_curso" ? "text-primary" : "text-destructive")}>{viaStatusLabel(s)}</b></div>)}</div><p className="mt-4 text-xs text-muted-foreground">Trabajo {job.id.slice(0, 8)} · {new Date(job.creado_en).toLocaleString("es-CO")}</p></section>
         {job.error && <section className="rounded-xl border border-warning/25 bg-warning-soft p-5"><CircleAlert className="size-5 text-warning"/><p className="mt-2 text-xs text-muted-foreground">{job.error}</p></section>}
         <Button className="w-full" variant="secondary" onClick={() => go("generator")}>Generar otro curso</Button>
         <Button className="w-full" variant="ghost" onClick={() => go("dashboard")}>Volver al panel</Button>

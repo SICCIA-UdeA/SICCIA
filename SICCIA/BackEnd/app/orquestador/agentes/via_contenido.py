@@ -82,6 +82,8 @@ no los incluyas.
   (conceptos, definiciones, procedimientos) y puntos clave. Añade el ejemplo práctico si está activado.
 - En cada tema incluye una línea `Duración sugerida: X-Y horas` usando exactamente la tabla común.
   Esa línea es informativa y no debe sumarse de nuevo a la duración total.
+- Aplica las fases del perfil pedagógico común en cada tema: incluye una actividad o reto observable,
+  instrucciones para realizarlo y una evidencia que el estudiante debe producir.
 - Al final de cada módulo, en este orden: el taller de práctica y el cierre del módulo, si están activados.
 - Usa listas y tablas simples; evita HTML.
 """

@@ -156,7 +156,10 @@ class Orquestador:
             for archivo in resultado.archivos:
                 (trabajo.dir_resultados / archivo.nombre).write_text(archivo.contenido, encoding="utf-8")
                 trabajo.archivos[archivo.nombre] = archivo
-            trabajo.vias[via.rol] = "completada"
+            proveedor = getattr(via._ejecutor, "ultimo_proveedor", None)
+            trabajo.vias[via.rol] = (
+                f"completada (proveedor: {proveedor})" if proveedor else "completada"
+            )
             return True
         except Exception as exc:  # noqa: BLE001
             log.exception("Vía %s falló en el trabajo %s", via.rol, trabajo.id)

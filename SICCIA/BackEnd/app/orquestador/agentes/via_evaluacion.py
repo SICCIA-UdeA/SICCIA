@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 from ..schemas import Configurador, CursoPlan
-from .base import ViaBase
+import re
+
+from .base import ViaBase, normalizar_notacion_matematica
 
 
 class ViaEvaluacion(ViaBase):
@@ -10,7 +12,11 @@ class ViaEvaluacion(ViaBase):
     archivos_esperados = ("evaluaciones.md",)
     instrucciones = (
         "Eres un diseñador de evaluaciones educativas. Creas actividades evaluativas claras, "
-        "alineadas con los temas del curso, con criterios de calificación y solucionarios correctos."
+        "alineadas con los temas del curso, con criterios de calificación y solucionarios correctos. "
+        "Cada opción de selección múltiple debe ocupar una línea independiente. Nunca muestres la "
+        "respuesta correcta ni la justificación junto al enunciado; ambas van únicamente al final, "
+        "en la sección Solucionario. En preguntas matemáticas, no incluyas dos opciones equivalentes "
+        "ni definiciones alternativas que también sean correctas: debe existir exactamente una respuesta."
     )
 
     def construir_subplantilla(self, config: Configurador, plan: CursoPlan) -> str:
@@ -64,11 +70,21 @@ otro agente lo hace. Tú solo evalúas lo que la estructura de la plantilla base
 2. Distribuye las actividades para cubrir todos los módulos y temas, indicando qué módulos evalúa cada una.
 3. Usa la distribución horaria común para que la carga de las actividades sea razonable. Incluye
    una tabla breve con la dedicación estimada de cada actividad, sin superar el total del curso.
-4. Los exámenes usan solo los tipos de pregunta indicados (si los hay). Incluye la respuesta correcta
-   y una breve justificación de cada pregunta en el solucionario.
+4. Los exámenes usan solo los tipos de pregunta indicados (si los hay). Cada pregunta debe tener
+   el enunciado y cada opción (`a)`, `b)`, `c)`, `d)`) en una línea separada. No pongas respuestas
+   ni justificaciones dentro de las actividades.
+   Cada pregunta debe tener exactamente una opción inequívocamente correcta; revisa que los
+   distractores no sean parcialmente correctos ni dependan de interpretaciones ambiguas.
+   Para matemáticas, incluye ejercicios con funciones, límites, derivadas o integrales y muestra
+   los datos necesarios para resolverlos, no solo definiciones. Si una definición tiene formas
+   equivalentes, usa solo una como opción correcta y convierte las demás en distractores claramente
+   incorrectos.
 5. Las actividades que no son examen (laboratorios, investigaciones, talleres, etc.) llevan: objetivo,
    enunciado, entregables, criterios de evaluación y rúbrica con puntajes.
 6. Adapta dificultad y lenguaje al público objetivo y a la metodología de la plantilla base.
+7. Evalúa las mismas evidencias que exige el perfil pedagógico común: no diseñes una evaluación
+   puramente memorística si la metodología exige resolver problemas, construir un proyecto, analizar
+   casos, colaborar o reflexionar sobre la experiencia.
 
 ## Estructura del documento `evaluaciones.md`
 1. `# Evaluaciones del curso`
@@ -76,3 +92,33 @@ otro agente lo hace. Tú solo evalúas lo que la estructura de la plantilla base
 3. Una sección `## Actividad N: <nombre>` por cada actividad, con su enunciado completo.
 4. `## Solucionario`: respuestas y rúbricas, separado de los enunciados.
 """
+
+    def _postprocesar_archivo(self, nombre: str, contenido: str) -> str:
+        if nombre != "evaluaciones.md":
+            return contenido
+
+        partes = re.split(r"(?im)^##\s+Solucionario\s*$", contenido, maxsplit=1)
+        enunciados = partes[0].rstrip()
+        solucionario = partes[1].strip() if len(partes) == 2 else ""
+        enunciados = normalizar_notacion_matematica(enunciados)
+        solucionario = normalizar_notacion_matematica(solucionario)
+        enunciados = re.sub(r"[ \t]+(?=[a-d]\))", "\n", enunciados)
+        enunciados = re.sub(r"(?m)^([a-d]\).*)$", r"\1  ", enunciados)
+        solucionario = re.sub(r"(?m)^([a-d]\).*)$", r"\1  ", solucionario)
+
+        respuestas: list[str] = []
+
+        def extraer_respuesta(match: re.Match[str]) -> str:
+            respuestas.append(match.group(0).strip())
+            return ""
+
+        enunciados = re.sub(
+            r"(?im)^[ \t]*\*{0,2}(?:Respuesta correcta|Justificación)\s*:.*$\n?",
+            extraer_respuesta,
+            enunciados,
+        )
+        if respuestas:
+            solucionario = (solucionario + "\n\n" if solucionario else "") + "\n".join(respuestas)
+        if not solucionario:
+            solucionario = "Completar el solucionario con las respuestas y justificaciones."
+        return f"{enunciados.rstrip()}\n\n## Solucionario\n\n{solucionario.strip()}\n"

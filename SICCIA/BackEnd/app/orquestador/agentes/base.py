@@ -23,6 +23,31 @@ _MARCADOR = re.compile(r"<!--\s*ARCHIVO:\s*([A-Za-z0-9_\-.]+)\s*-->")
 _CERCA = re.compile(r"^\s*```(?:markdown|md)?\s*\n(.*)\n```\s*$", re.DOTALL)
 
 
+def normalizar_notacion_matematica(texto: str) -> str:
+    """Convierte notación LaTeX básica a texto visible en el PDF."""
+    texto = re.sub(r"\$([^$\n]+)\$", r"\1", texto)
+    texto = re.sub(r"\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}", r"(\1)/(\2)", texto)
+    texto = re.sub(r"\\sqrt\s*\{([^{}]+)\}", r"√(\1)", texto)
+    reemplazos = {
+        r"\lim": "lim",
+        r"\to": "→",
+        r"\infty": "∞",
+        r"\cdot": "·",
+        r"\times": "×",
+        r"\leq": "≤",
+        r"\geq": "≥",
+        r"\neq": "≠",
+        r"\pi": "π",
+        r"\text": "",
+        r"\,": " ",
+    }
+    for origen, destino in reemplazos.items():
+        texto = texto.replace(origen, destino)
+    texto = re.sub(r"\^\{([^{}]+)\}", r"^\1", texto)
+    texto = re.sub(r"_\{([^{}]+)\}", r"_\1", texto)
+    return texto.replace("\\", "")
+
+
 @dataclass
 class ArchivoGenerado:
     nombre: str
@@ -52,7 +77,11 @@ class ViaBase(ABC):
     def construir_prompt(self, plantilla_madre: str, subplantilla: str) -> str:
         marcadores = "\n".join(f"<!-- ARCHIVO: {n} -->" for n in self.archivos_esperados)
         
-        anti_latex = "REGLA ESTRICTA DE FORMATO: Usa ÚNICAMENTE Markdown estándar. ESTÁ TOTALMENTE PROHIBIDO usar LaTeX, MathJax, o símbolos de dólar ($ o $$). Escribe las fórmulas matemáticas como texto normal.\n\n"
+        anti_latex = (
+            "REGLA ESTRICTA DE FORMATO: Usa únicamente Markdown estándar compatible con PDF. "
+            "No uses delimitadores LaTeX, MathJax ni símbolos de dólar ($ o $$). Si el curso es "
+            "matemático, sí debes usar símbolos Unicode y fórmulas visibles según la plantilla base.\n\n"
+        )
         
         return (
             "Recibes dos documentos. La plantilla base fija el contexto común del curso y la "
@@ -71,14 +100,19 @@ class ViaBase(ABC):
         prompt = self.construir_prompt(plantilla_madre, subplantilla)
         texto = await self._ejecutor.generar(rol=self.rol, instrucciones=self.instrucciones, prompt=prompt)
         archivos = [
-            ArchivoGenerado(nombre=n, contenido=c, via=self.rol)
+            ArchivoGenerado(nombre=n, contenido=self._postprocesar_archivo(n, c), via=self.rol)
             for n, c in self._separar_archivos(texto).items()
         ]
         return ResultadoVia(via=self.rol, subplantilla=subplantilla, archivos=archivos)
 
+    def _postprocesar_archivo(self, nombre: str, contenido: str) -> str:
+        return normalizar_notacion_matematica(contenido)
+
     # ------------------------------------------------------------------ helpers
     def _separar_archivos(self, texto: str) -> dict[str, str]:
         texto = texto.strip()
+        if texto.strip("` \t\r\n").lower() in {"none", "null", "nan"}:
+            raise ValueError(f"La vía {self.rol} devolvió una respuesta nula.")
         partes = _MARCADOR.split(texto)
         archivos: dict[str, str] = {}
         for i in range(1, len(partes), 2):

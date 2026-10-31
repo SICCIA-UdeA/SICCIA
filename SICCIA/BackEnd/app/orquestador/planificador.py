@@ -63,7 +63,13 @@ class Planificador:
         texto_normalizado = texto.lower()
         return any(
             indicador in texto_normalizado
-            for indicador in ("rate limit", "free-models-per-day", "429", "provider returned error")
+            for indicador in (
+                "rate limit",
+                "free-models-per-day",
+                "429",
+                "404 page not found",
+                "provider returned error",
+            )
         )
 
     # ------------------------------------------------------------------ helpers

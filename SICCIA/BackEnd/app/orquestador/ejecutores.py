@@ -21,6 +21,10 @@ _MARCADOR = re.compile(r"<!--\s*ARCHIVO:\s*([A-Za-z0-9_\-.]+)\s*-->")
 log = logging.getLogger(__name__)
 
 
+class ConfiguracionProveedorError(ValueError):
+    """La configuración no permite construir el cliente del proveedor."""
+
+
 class EjecutorLLM(Protocol):
     es_simulado: bool
 
@@ -87,19 +91,28 @@ class EjecutorAgno:
 
     def __init__(self, cfg: ConfigModelo):
         self._cfg = cfg
+        self.ultimo_proveedor = cfg.proveedor
+        self.ultimo_modelo = cfg.model_id
 
-    def _crear_modelo(self):
-        cfg = self._cfg
+    def _crear_modelo(self, cfg: ConfigModelo | None = None):
+        cfg = cfg or self._cfg
         if cfg.proveedor == "gemini":
             from agno.models.google import Gemini
             kwargs = {"id": cfg.model_id, "temperature": cfg.temperatura}
-            api_key = clave_google() or cfg.api_key
-            if api_key:
-                kwargs["api_key"] = api_key
+            api_key = cfg.api_key or clave_google()
+            if not api_key:
+                raise ConfiguracionProveedorError(
+                    "Gemini requiere GOOGLE_API_KEY o una clave API del rol."
+                )
+            kwargs["api_key"] = api_key
             return Gemini(**kwargs)
             
         if cfg.proveedor == "openai_like":
             from agno.models.openai.like import OpenAILike
+            if not cfg.api_key or not cfg.base_url:
+                raise ConfiguracionProveedorError(
+                    "openai_like requiere ORQ_API_KEY y ORQ_BASE_URL."
+                )
             return OpenAILike(
                 id=cfg.model_id, api_key=cfg.api_key, base_url=cfg.base_url,
                 temperature=cfg.temperatura, max_tokens=cfg.max_tokens,
@@ -107,6 +120,8 @@ class EjecutorAgno:
             
         if cfg.proveedor == "openai":
             from agno.models.openai import OpenAIChat
+            if not cfg.api_key:
+                raise ConfiguracionProveedorError("openai requiere ORQ_API_KEY.")
             return OpenAIChat(
                 id=cfg.model_id,
                 api_key=cfg.api_key,
@@ -116,89 +131,101 @@ class EjecutorAgno:
             
         raise ValueError(f"Proveedor de modelo no soportado: {cfg.proveedor!r}")
 
+    @staticmethod
+    def _reintentable(exc: Exception) -> bool:
+        if isinstance(exc, (asyncio.TimeoutError, TimeoutError, ConnectionError)):
+            return True
+        mensaje = str(exc).lower()
+        return any(
+            marcador in mensaje
+            for marcador in ("429", "rate limit", "too many requests", "temporarily", "503", "502", "504",
+                             "respuesta vacía", "respuesta nula", "timed out", "timeout")
+        )
+
     async def generar(self, *, rol: str, instrucciones: str, prompt: str) -> str:
         from agno.agent import Agent
 
         intentos_maximos = 3
         espera_base = 2
-        modelo_actual = self._crear_modelo()
-        
-        for intento in range(1, intentos_maximos + 1):
+        configuraciones = [self._cfg]
+        if self._cfg.respaldo and self._cfg.respaldo.proveedor != self._cfg.proveedor:
+            configuraciones.append(self._cfg.respaldo)
+        ultimo_error: Exception | None = None
+
+        for indice, cfg in enumerate(configuraciones):
             try:
-                opciones_agente = {}
-                if rol == "planificador":
-                    from .schemas import CursoPlan
+                modelo = self._crear_modelo(cfg)
+            except ConfiguracionProveedorError:
+                if indice == 0:
+                    raise
+                log.warning("[%s] Respaldo %s no está configurado correctamente.", rol, cfg.proveedor)
+                continue
 
-                    opciones_agente = {
-                        "output_schema": CursoPlan,
-                        "use_json_mode": True,
-                    }
-                agente = Agent(
-                    name=rol, 
-                    model=modelo_actual, 
-                    instructions=instrucciones, 
-                    markdown=True,
-                    **opciones_agente,
-                )
-                
-                t0 = time.time()
-                respuesta = await asyncio.wait_for(
-                    agente.arun(prompt),
-                    timeout=self._cfg.timeout_segundos,
-                )
-                t1 = time.time()
-                
-                contenido = respuesta.content if hasattr(respuesta, "content") else str(respuesta)
-                if hasattr(contenido, "model_dump_json"):
-                    contenido = contenido.model_dump_json()
-                if not isinstance(contenido, str):
-                    contenido = str(contenido)
-                    
-                contenido_limpio = contenido.strip()
-                
-                # 1. BLOQUEO CONTRA RESPUESTAS VACÍAS
-                if not contenido_limpio:
-                    raise ValueError("El modelo devolvió una respuesta vacía o None.")
-                
-                # 2. BLOQUEO CONTRA ERRORES DISFRAZADOS DE TEXTO EXITOSO
-                if contenido_limpio.startswith("{") and "error" in contenido_limpio.lower():
-                    try:
-                        error_json = json.loads(contenido_limpio)
-                        if "error" in error_json:
-                            raise RuntimeError(f"La API devolvió un JSON de error: {error_json['error']}")
-                    except json.JSONDecodeError:
-                        pass # Falsa alarma, es texto Markdown que curiosamente empezaba con llave
-                
-                # Telemetría: Pasamos la respuesta completa para cazar los tokens
+            for intento in range(1, intentos_maximos + 1):
                 try:
-                    log_prueba(
-                        proveedor=self._cfg.proveedor, 
-                        modelo=getattr(modelo_actual, "id", self._cfg.model_id), 
-                        rol=rol, 
-                        respuesta_agno=respuesta,
-                        segundos=t1 - t0
+                    opciones_agente = {}
+                    if rol == "planificador":
+                        from .schemas import CursoPlan
+                        opciones_agente = {"output_schema": CursoPlan, "use_json_mode": True}
+                    agente = Agent(
+                        name=rol, model=modelo, instructions=instrucciones, markdown=True,
+                        **opciones_agente,
                     )
-                except Exception as exc:  # un fallo de telemetría no debe repetir la llamada al modelo
-                    log.warning(f"[{rol}] No se pudo registrar la telemetría: {exc}")
-                
-                return contenido
-
-            except Exception as exc:
-                if intento < intentos_maximos:
-                    tiempo_espera = espera_base ** intento # 2s, 4s...
-                    log.warning(f"[{rol}] Intento {intento} falló ({exc}). Reintentando en {tiempo_espera}s...")
-                    await asyncio.sleep(tiempo_espera)
-                    
-                    # El fallback solo aplica a Gemini; no debe cambiar
-                    # silenciosamente un proveedor openai_like u openai.
-                    if intento == intentos_maximos - 1 and self._cfg.proveedor == "gemini":
-                        log.warning(f"[{rol}] Agotando recursos. Cambiando a modelo de respaldo: gemini-3.8-flash")
-                        from agno.models.google import Gemini
-                        fallback_key = clave_google()
-                        modelo_actual = Gemini(id="gemini-3.8-flash", api_key=fallback_key)
-                else:
-                    log.error(f"[{rol}] Fallo definitivo tras {intentos_maximos} intentos.")
-                    raise exc # Lanza el error para que orquestador.py atrape el fallo de esta vía
+                    t0 = time.time()
+                    respuesta = await asyncio.wait_for(
+                        agente.arun(prompt), timeout=cfg.timeout_segundos
+                    )
+                    t1 = time.time()
+                    contenido = respuesta.content if hasattr(respuesta, "content") else str(respuesta)
+                    if hasattr(contenido, "model_dump_json"):
+                        contenido = contenido.model_dump_json()
+                    if not isinstance(contenido, str):
+                        contenido = str(contenido)
+                    contenido_limpio = contenido.strip()
+                    valor_normalizado = contenido_limpio.strip("` \t\r\n").lower()
+                    if not contenido_limpio or valor_normalizado in {"none", "null", "nan"}:
+                        raise ValueError("El modelo devolvió una respuesta vacía o nula.")
+                    if contenido_limpio.startswith("{") and "error" in contenido_limpio.lower():
+                        try:
+                            error_json = json.loads(contenido_limpio)
+                            if "error" in error_json:
+                                raise RuntimeError(
+                                    f"La API devolvió un JSON de error: {error_json['error']}"
+                                )
+                        except json.JSONDecodeError:
+                            pass
+                    try:
+                        log_prueba(
+                            proveedor=cfg.proveedor,
+                            modelo=getattr(modelo, "id", cfg.model_id),
+                            rol=rol, respuesta_agno=respuesta, segundos=t1 - t0,
+                        )
+                    except Exception as exc:
+                        log.warning("[%s] No se pudo registrar la telemetría: %s", rol, exc)
+                    self.ultimo_proveedor = cfg.proveedor
+                    self.ultimo_modelo = cfg.model_id
+                    return contenido
+                except Exception as exc:
+                    ultimo_error = exc
+                    if not self._reintentable(exc):
+                        break
+                    if intento < intentos_maximos:
+                        espera = espera_base ** intento
+                        log.warning(
+                            "[%s] %s intento %d falló (%s). Reintentando en %ss.",
+                            rol, cfg.proveedor, intento, exc, espera,
+                        )
+                        await asyncio.sleep(espera)
+            if indice + 1 < len(configuraciones):
+                log.warning(
+                    "[%s] %s agotado; usando respaldo %s.",
+                    rol, cfg.proveedor, configuraciones[indice + 1].proveedor,
+                )
+        if ultimo_error:
+            raise RuntimeError(
+                f"Fallaron los proveedores configurados para {rol}: {ultimo_error}"
+            ) from ultimo_error
+        raise RuntimeError(f"No hay un proveedor disponible para {rol}.")
 
 
 def crear_ejecutor(rol: str) -> EjecutorLLM:
