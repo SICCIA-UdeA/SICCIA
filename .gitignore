@@ -8,6 +8,9 @@ SICCIA.zip
 venv/
 __pycache__/
 
+# Archivo con credenciales y claves API
+SICCIA/env .txt
+
 
 node_modules/
 **/orquestador_salida/
