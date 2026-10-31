@@ -11,17 +11,29 @@ import json
 import re
 from pathlib import Path
 
-import markdown
+try:
+    import markdown
+except ImportError:
+    markdown = None
 
 try:
     from weasyprint import HTML
     WEASYPRINT_OK = True
-except ImportError:
+    WEASYPRINT_ERROR = None
+except (ImportError, OSError) as exc:
+    HTML = None
     WEASYPRINT_OK = False
+    WEASYPRINT_ERROR = str(exc)
 
 RUTA_CSS = Path(__file__).with_name("plantilla_pdf.css")
 GENERAR_VERSION_ESTUDIANTE = False
-_RE_IMG = re.compile(r"!\[(.*?)\]\(unsplash:(.*?)\)")
+# FUNCIONALIDAD PARA UNA VERSIÓN FUTURA: imágenes con Unsplash. Desactivada.
+# Nota: source.unsplash.com está retirado; usar la API oficial al reactivarla.
+# _RE_IMG = re.compile(r"!\[(.*?)\]\(unsplash:(.*?)\)")
+# def obtener_imagen_unsplash(palabras_clave: str) -> str:
+#     terminos = palabras_clave.strip().replace(" ", ",")
+#     return f"https://source.unsplash.com/800x400/?{terminos}"
+_RE_IMAGEN_MARKDOWN = re.compile(r"!\[([^\]]*)\]\([^)]*\)")
 _RE_SEPARADOR = re.compile(r"\s+-\s+(?=\S)")
 _RE_NUMERADO = re.compile(r"^(\s*\d+\.\s+)(.*)$")
 _RE_OPCION = re.compile(r"^[A-Da-d][\)\.]\s")
@@ -43,12 +55,6 @@ CSS_EXTRA = """
 
 def _escapar(valor) -> str:
     return htmllib.escape(str(valor))
-
-
-def obtener_imagen_unsplash(palabras_clave: str) -> str:
-    """URL para un marcador unsplash:. Source Unsplash está retirado: revisar antes de activar imágenes."""
-    terminos = palabras_clave.strip().replace(" ", ",")
-    return f"https://source.unsplash.com/800x400/?{terminos}"
 
 
 def _partir(cuerpo: str):
@@ -218,37 +224,55 @@ def filtrar_contenido_estudiante(nombre: str, texto: str) -> str:
     return "\n".join(salida)
 
 
-def procesar_imagenes_y_pdf(directorio_trabajo: Path, archivos_generados: dict) -> None:
-    """Genera versiones para estudiantes y docentes de cada Markdown."""
+def procesar_imagenes_y_pdf(directorio_trabajo: Path, archivos_generados: dict) -> tuple[list[str], list[str]]:
+    """Genera los PDF y devuelve los nombres creados y los errores por archivo."""
+    dependencias_faltantes = []
     if not WEASYPRINT_OK:
-        print("WeasyPrint no está instalado: no se generan PDF.")
-        return
+        detalle = f" ({WEASYPRINT_ERROR})" if WEASYPRINT_ERROR else ""
+        dependencias_faltantes.append(
+            f"WeasyPrint no está disponible{detalle}; no se pueden generar los PDF."
+        )
+    if markdown is None:
+        dependencias_faltantes.append(
+            "La biblioteca markdown no está instalada; no se pueden generar los PDF."
+        )
+    if dependencias_faltantes:
+        return [], dependencias_faltantes
     css = RUTA_CSS.read_text(encoding="utf-8") + CSS_EXTRA
     portada = _portada(directorio_trabajo)
-    for nombre, archivo in archivos_generados.items():
-        if not nombre.endswith(".md"):
-            continue
-        versiones = (
-            (
-                ("estudiante", filtrar_contenido_estudiante(nombre, archivo.contenido)),
-                ("docente", archivo.contenido),
+    generados: list[str] = []
+    errores: list[str] = []
+    markdowns = [(n, a) for n, a in archivos_generados.items() if n.endswith(".md")]
+    if not markdowns:
+        return [], ["No hay archivos Markdown para convertir en PDF."]
+    for nombre, archivo in markdowns:
+        try:
+            versiones = (
+                (
+                    ("estudiante", filtrar_contenido_estudiante(nombre, archivo.contenido)),
+                    ("docente", archivo.contenido),
+                )
+                if GENERAR_VERSION_ESTUDIANTE
+                else (("completo", archivo.contenido),)
             )
-            if GENERAR_VERSION_ESTUDIANTE
-            else (("completo", archivo.contenido),)
-        )
-        for audiencia, contenido in versiones:
-            texto = _RE_IMG.sub(
-                lambda m: f"![{m.group(1)}]({obtener_imagen_unsplash(m.group(2))})",
-                contenido,
-            )
-            texto = separar_listas_pegadas(texto)
-            cuerpo = markdown.markdown(texto, extensions=["tables", "fenced_code", "sane_lists"])
-            cuerpo = _estilizar_fracciones(cuerpo)
-            documento = (
-                "<!DOCTYPE html><html lang='es'><head><meta charset='utf-8'>"
-                f"<style>{css}</style></head><body>{portada}{cuerpo}</body></html>"
-            )
-            sufijo = f"_{audiencia}" if GENERAR_VERSION_ESTUDIANTE else ""
-            ruta_pdf = directorio_trabajo / nombre.replace(".md", f"{sufijo}.pdf")
-            HTML(string=documento, base_url=str(directorio_trabajo)).write_pdf(ruta_pdf)
-            print(f"PDF generado: {ruta_pdf.name}")
+            for audiencia, contenido in versiones:
+                # FUNCIONALIDAD PARA UNA VERSIÓN FUTURA: sustituir marcadores Unsplash por URLs oficiales.
+                # texto = _RE_IMG.sub(lambda m: f"![{m.group(1)}]({obtener_imagen_unsplash(m.group(2))})", contenido)
+                texto = _RE_IMAGEN_MARKDOWN.sub(lambda m: m.group(1), contenido)
+                texto = separar_listas_pegadas(texto)
+                cuerpo = markdown.markdown(texto, extensions=["tables", "fenced_code", "sane_lists"])
+                cuerpo = _estilizar_fracciones(cuerpo)
+                documento = (
+                    "<!DOCTYPE html><html lang='es'><head><meta charset='utf-8'>"
+                    f"<style>{css}</style></head><body>{portada}{cuerpo}</body></html>"
+                )
+                sufijo = f"_{audiencia}" if GENERAR_VERSION_ESTUDIANTE else ""
+                ruta_pdf = directorio_trabajo / nombre.replace(".md", f"{sufijo}.pdf")
+                HTML(string=documento, base_url=str(directorio_trabajo)).write_pdf(ruta_pdf)
+                if ruta_pdf.is_file() and ruta_pdf.stat().st_size > 0:
+                    generados.append(ruta_pdf.name)
+                else:
+                    errores.append(f"{ruta_pdf.name}: el conversor no creó un PDF con contenido.")
+        except Exception as exc:
+            errores.append(f"{nombre}: {exc}")
+    return generados, errores

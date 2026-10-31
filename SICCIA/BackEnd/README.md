@@ -1,6 +1,6 @@
 # SICCIA BackEnd
 
-Backend HTTP construido con Python con autenticación Google mediante Flask y generación de cursos mediante FastAPI. Ambas aplicaciones se montan detrás de un único servidor ASGI con `a2wsgi` y comparten el puerto `8080`; no es necesario separar los servicios por puertos.
+Backend HTTP construido con Python con autenticación Google mediante Flask y generación de cursos mediante FastAPI. Ambas aplicaciones se montan detrás de un único servidor ASGI con `a2wsgi` y comparten el puerto configurable `BACKEND_PORT` (por defecto `8084`); el frontend de desarrollo usa `FRONTEND_PORT` (por defecto `8085`).
 
 ## Funcionalidades actuales
 
@@ -22,18 +22,19 @@ Backend HTTP construido con Python con autenticación Google mediante Flask y ge
 
 ## Dependencias
 
-Las dependencias están separadas por servicio en dos manifiestos. Instala ambos para disponer de todo el backend:
+La fuente de verdad con todas las dependencias Python y sus versiones fijadas es [`../../dependencias.txt`](../../dependencias.txt). Los manifiestos locales se conservan por compatibilidad, pero no sustituyen esa lista:
 
 | Manifiesto | Librerías principales | Uso |
 |---|---|---|
 | `requirements.txt` | `Flask`, `Authlib`, `python-dotenv`, `requests` | API de autenticación Google, sesiones y configuración. |
-| `app/requirements.txt` | `fastapi`, `uvicorn[standard]`, `a2wsgi`, `pydantic`, `agno`, `google-genai`, `openai`, `pytest`, `pytest-asyncio`, `httpx` | Servidor unificado ASGI, integración WSGI de Flask, API del orquestador, proveedores LLM y pruebas. |
+| `app/requirements.txt` | `fastapi`, `uvicorn[standard]`, `a2wsgi`, `pydantic`, `agno`, `google-genai`, `openai`, `pytest`, `pytest-asyncio`, `httpx` | Servidor unificado ASGI, integración WSGI de Flask, API del orquestador y proveedores LLM. |
+| `../../dependencias.txt` | `pytest`, `pytest-asyncio`, `pytest-cov`, `coverage`, `httpx` | Suite unitaria y reportes JUnit/Cobertura. |
 
 `agno`, `google-genai` y `openai` se usan al seleccionar sus proveedores correspondientes. El modo `mock` del orquestador no necesita claves de modelo.
 
 ## Instalación
 
-Desde la raíz del workspace, entra al backend antes de crear el entorno virtual:
+Desde la raíz del repositorio, entra al backend antes de crear el entorno virtual:
 
 ```bash
 cd SICCIA/BackEnd
@@ -46,9 +47,8 @@ source venv/bin/activate        # macOS / Linux
 venv\Scripts\activate.bat       # Windows (cmd)
 venv\Scripts\Activate.ps1       # Windows (PowerShell)
 
-# 3. Instalar dependencias de autenticación y del orquestador
-pip install -r requirements.txt
-pip install -r app/requirements.txt
+# 3. Instalar todas las dependencias Python con versiones fijadas
+pip install -r ../../dependencias.txt
 
 # 4. Crear el archivo de configuración
 cp .env.example .env            # en Windows: copy .env.example .env
@@ -59,7 +59,9 @@ Edita `.env` y completa:
 ```text
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
-GOOGLE_REDIRECT_URI=http://localhost:8080/auth/google/callback
+GOOGLE_REDIRECT_URI=http://localhost:8084/auth/google/callback
+BACKEND_PORT=8084
+FRONTEND_PORT=8085
 FLASK_SECRET_KEY=...
 SESSION_COOKIE_SECURE=False
 ```
@@ -78,7 +80,7 @@ python -c "import secrets; print(secrets.token_hex(32))"
 4. En **tipo de aplicación**, elige **Web application**.
 5. En **URI de redirección autorizada**, agrega exactamente:
    ```
-   http://localhost:8080/auth/google/callback
+   http://localhost:8084/auth/google/callback
    ```
 6. Copia el **Client ID** y **Client Secret** generados a tu archivo `.env`.
 
@@ -98,9 +100,9 @@ cd SICCIA\BackEnd
 python run.py
 ```
 
-El servidor unificado escucha en `http://127.0.0.1:8080`. Uvicorn sirve la API FastAPI y monta la aplicación Flask mediante `a2wsgi`.
+El servidor unificado escucha por defecto en `http://localhost:8084`. Uvicorn sirve la API FastAPI y monta la aplicación Flask mediante `a2wsgi`. Usa siempre `localhost` para que el flujo de cookies coincida con el frontend.
 
-La documentación interactiva de FastAPI se encuentra en `http://127.0.0.1:8080/docs`. No inicies un segundo proceso para el orquestador: el mismo servidor expone ambos grupos de endpoints.
+La documentación interactiva de FastAPI se encuentra en `http://localhost:8084/docs`. No inicies un segundo proceso para el orquestador: el mismo servidor expone ambos grupos de endpoints.
 
 El orquestador usa `mock` por defecto, por lo que puede ejecutarse sin credenciales de IA. Para Gemini configura `ORQ_PROVEEDOR=gemini` y `ORQ_API_KEY` (o `GOOGLE_API_KEY`). También acepta `ORQ_PROVEEDOR=openai` con `ORQ_API_KEY`, o `ORQ_PROVEEDOR=openai_like` con `ORQ_API_KEY` y `ORQ_BASE_URL`. Las variables específicas por rol (`PLANIFICADOR`, `EVALUACION`, `CONTENIDO`, `PROGRAMA`, `VERIFICACION`) pueden sobrescribir `ORQ_PROVEEDOR`, `ORQ_MODEL_ID`, `ORQ_API_KEY`, `ORQ_BASE_URL` y `ORQ_TEMPERATURA`; los valores comunes tienen el prefijo `ORQ_`. El modelo Gemini predeterminado es `gemini-3.8-flash`; si usas otro proveedor, debes definir el modelo compatible con ese proveedor.
 La forma recomendada es registrar cada proveedor una sola vez en `.env`: `ORQ_PROVEEDOR_NVIDIA_TIPO`, `ORQ_PROVEEDOR_NVIDIA_API_KEY`, `ORQ_PROVEEDOR_NVIDIA_BASE_URL`, `ORQ_PROVEEDOR_NVIDIA_MODELO` y `ORQ_PROVEEDOR_NVIDIA_TIMEOUT_SEGUNDOS`; repite el patrón para `GEMINI`. El valor recomendado para Gemini es `gemini-3.8-flash` y el de NVIDIA es `nvidia/nemotron-3.5-lightning:free`. El presupuesto recomendado es `32768` tokens para todas las vías. Después asocia cada vía con `ORQ_VIA_PLANIFICADOR`, `ORQ_VIA_CONTENIDO`, `ORQ_VIA_EVALUACION`, `ORQ_VIA_VERIFICACION` y `ORQ_VIA_PROGRAMA`, usando los nombres `nvidia` y `gemini`. El respaldo se indica con `ORQ_RESPALDO_<ROL>`. Así las claves no se repiten y cambiar el modelo solo requiere editar su registro. Las variables antiguas por rol siguen funcionando para compatibilidad. El ejecutor reintenta errores transitorios (timeouts, límites 429 y errores 5xx) y luego cambia al respaldo, dejando el proveedor efectivo en el estado de la vía. Los errores de configuración no se reintentan.
@@ -117,7 +119,7 @@ El rol `planificador` solicita una respuesta estructurada con el esquema `CursoP
 | `GET` | `/auth/me` | Devuelve los datos del usuario autenticado, o `401` si no hay sesión activa. |
 | `GET` | `/auth/logout` | Elimina de la sesión los datos del usuario de la aplicación. No cierra la sesión de Google. |
 
-### Orquestador de cursos (FastAPI, puerto 8080)
+### Orquestador de cursos (FastAPI, puerto 8084 por defecto)
 
 | Método | Ruta | Descripción |
 |---|---|---|
@@ -126,10 +128,10 @@ El rol `planificador` solicita una respuesta estructurada con el esquema `CursoP
 | `GET` | `/orquestador/cursos/{trabajo_id}/descarga` | Descarga todos los materiales como ZIP; responde `409` si el trabajo no ha terminado y `404` si no generó archivos. |
 | `GET` | `/orquestador/cursos/{trabajo_id}/archivos/{nombre}` | Descarga un archivo Markdown generado. |
 
-El configurador acepta `datos`, `contenido`, `evaluacion` y `estilo`. Puedes usar [`app/ejemplo_configurador.json`](app/ejemplo_configurador.json) como referencia. Ejemplo de inicio desde `SICCIA/BackEnd`:
+El configurador acepta `datos`, `contenido` y `evaluacion`; los campos extra de configuraciones antiguas se ignoran. Puedes usar [`app/ejemplo_configurador.json`](app/ejemplo_configurador.json) como referencia. Ejemplo de inicio desde `SICCIA/BackEnd`:
 
 ```powershell
-Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8080/orquestador/cursos `
+Invoke-RestMethod -Method Post -Uri http://localhost:8084/orquestador/cursos `
    -ContentType 'application/json' `
    -InFile .\app\ejemplo_configurador.json
 ```
@@ -137,9 +139,9 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8080/orquestador/cursos `
 La respuesta incluye un identificador de trabajo. Úsalo para consultar su estado o descargar los resultados:
 
 ```text
-GET http://127.0.0.1:8080/orquestador/cursos/{trabajo_id}
-GET http://127.0.0.1:8080/orquestador/cursos/{trabajo_id}/descarga
-GET http://127.0.0.1:8080/orquestador/cursos/{trabajo_id}/archivos/{nombre}
+GET http://localhost:8084/orquestador/cursos/{trabajo_id}
+GET http://localhost:8084/orquestador/cursos/{trabajo_id}/descarga
+GET http://localhost:8084/orquestador/cursos/{trabajo_id}/archivos/{nombre}
 ```
 
 Los estados posibles son `pendiente`, `planificando`, `ejecutando`, `completado`, `completado_con_errores` y `error`. El identificador solo está disponible mientras el proceso que creó el trabajo siga activo.
@@ -165,15 +167,15 @@ Aunque ambas APIs comparten el servidor y puerto, los endpoints del orquestador 
 
 ## Probar el flujo (sin frontend)
 
-1. Abrir en el navegador: `http://localhost:8080/auth/google`.
+1. Abrir en el navegador: `http://localhost:8084/auth/google`.
 2. Iniciar sesión con una cuenta de Google → redirige automáticamente a `/auth/me` mostrando los datos del usuario.
 3. Verificar sin sesión:
    ```bash
-   curl -i http://localhost:8080/auth/me
+   curl -i http://localhost:8084/auth/me
    ```
 4. Cerrar sesión:
    ```bash
-   curl -i http://localhost:8080/auth/logout
+   curl -i http://localhost:8084/auth/logout
    ```
 
 El login en sí debe probarse desde el navegador, porque requiere la pantalla interactiva de Google; `curl`/Postman sirven para inspeccionar `/auth/me` y `/auth/logout` reutilizando la cookie de sesión del navegador.
@@ -213,16 +215,21 @@ SICCIA/
    │  ├── __init__.py
    │  ├── auth_controller.py
    │  └── orquestador_controller.py
+   ├── pytest.ini
+   ├── .coveragerc
    ├── requirements.txt
    ├── .env.example
    ├── README.md
+   ├── tests/
+   │  ├── orquestador/
+   │  ├── secuence/
+   │  └── controller/
    └── app/
       ├── __init__.py
       ├── config.py
       ├── server.py
       ├── requirements.txt
       ├── ejemplo_configurador.json
-      ├── tests/
       ├── orquestador/
          ├── __main__.py
          ├── app.py
@@ -231,15 +238,29 @@ SICCIA/
          └── agentes/
       └── services/
          └── google_auth.py
+   └── tests/
+      ├── orquestador/
+      ├── secuence/
+      └── controller/
 ```
 
 - `SICCIA/__init__.py` y `SICCIA/BackEnd/__init__.py` permiten importar el backend como paquete (`SICCIA.BackEnd`).
-- `run.py` es el punto de entrada único y admite `python -m SICCIA.BackEnd.run` desde la raíz o `python run.py` desde `SICCIA/BackEnd`; ambos inician Uvicorn en el puerto `8080`.
+- `run.py` es el punto de entrada único y admite `python -m SICCIA.BackEnd.run` desde la raíz o `python run.py` desde `SICCIA/BackEnd`; ambos leen `BACKEND_PORT` (por defecto `8084`).
 - `app/server.py` monta la aplicación Flask de autenticación en FastAPI usando `a2wsgi`.
 - `app/__init__.py` define `create_app()`; `config.py` carga `.env` y valida las credenciales requeridas.
 - `controller/auth_controller.py` expone los endpoints de autenticación, `controller/orquestador_controller.py` expone los endpoints de cursos y `app/services/google_auth.py` encapsula la integración con Authlib.
 - `app/orquestador/` contiene la API FastAPI, los esquemas, la planificación y los agentes que generan los materiales.
 - `.env` contiene la configuración local y no debe publicarse. `.env.example` sirve como plantilla.
+
+## Pruebas unitarias
+
+Desde `SICCIA/BackEnd`, con el entorno virtual y las dependencias de `dependencias.txt` instaladas:
+
+```powershell
+python -m pytest
+```
+
+La suite vive en `tests/` y no requiere proveedores reales ni bibliotecas nativas de WeasyPrint. La trazabilidad funcional, los totales y la cobertura están en [`tests/MATRIZ_PRUEBAS.md`](tests/MATRIZ_PRUEBAS.md). Los reportes se generan en `reports/coverage.xml` (Cobertura) y `reports/junit.xml` (JUnit); la carpeta y los archivos temporales de cobertura están ignorados por Git.
 
 ## Flujo de los endpoints
 

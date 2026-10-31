@@ -27,13 +27,10 @@ export type EvaluacionConfig = {
   total_actividades: number | null;
 };
 
-export type EstiloConfig = { formato_salida: string; incluir_imagenes: boolean };
-
 export type Configurador = {
   datos: DatosCurso;
   contenido: ContenidoConfig;
   evaluacion: EvaluacionConfig;
-  estilo: EstiloConfig;
 };
 
 export const MAX_MODULOS = 20;
@@ -50,7 +47,6 @@ export type EstadoFormulario = {
   cierre: boolean;
   tiposPregunta: string[];
   actividades: Array<{ tipo: string; cantidad: number; porcentaje: number | null }>;
-  imagenes: boolean;
 };
 
 const limpio = (s: string) => s.trim();
@@ -84,7 +80,6 @@ export function construirConfigurador(f: EstadoFormulario): Configurador {
       actividades,
       total_actividades: total || null,
     },
-    estilo: { formato_salida: "pdf", incluir_imagenes: f.imagenes },
   };
 }
 

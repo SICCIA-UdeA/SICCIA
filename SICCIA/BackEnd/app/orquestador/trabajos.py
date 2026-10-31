@@ -31,6 +31,7 @@ class Trabajo:
     vias: dict[str, str] = field(default_factory=dict)
     archivos: dict[str, ArchivoGenerado] = field(default_factory=dict)  # nombre -> archivo
     error: str | None = None
+    advertencias: list[str] = field(default_factory=list)
     creado_en: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     @property

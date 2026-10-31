@@ -1,0 +1,27 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "SICCIA Backend (logs de endpoints)",
+			"type": "shell",
+			"command": "${workspaceFolder}\\SICCIA\\BackEnd\\venv\\Scripts\\python.exe",
+			"args": ["run.py"],
+			"options": {
+				"cwd": "${workspaceFolder}\\SICCIA\\BackEnd"
+			},
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "SICCIA Frontend (Vite)",
+			"type": "shell",
+			"command": "npm",
+			"args": ["run", "dev"],
+			"options": {
+				"cwd": "${workspaceFolder}\\SICCIA\\FrontEnd"
+			},
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
+}

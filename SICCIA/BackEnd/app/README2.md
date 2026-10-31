@@ -15,11 +15,10 @@ Genera un curso educativo en paralelo a partir del JSON "configurador" del front
 Una vía que falla no cancela a las otras (estado `completado_con_errores`).
 
 ## Probarlo (sin modelos)
-    pip install -r ../requirements.txt
-    pip install -r requirements.txt
-    pytest
-    cd ..
-    python run.py                 # http://127.0.0.1:8080/docs
+    cd SICCIA/BackEnd
+    python -m pytest
+    # Reportes: reports/coverage.xml y reports/junit.xml
+    python run.py                 # http://localhost:8084/docs (BACKEND_PORT configurable)
 
 ## Conectar Gemini
     export ORQ_PROVEEDOR=gemini

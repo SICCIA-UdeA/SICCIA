@@ -2,9 +2,9 @@
 // En desarrollo las llamadas van a "/api" y el proxy de Vite las reenvía al backend,
 // así se evita CORS (el backend no lo tiene configurado).
 import type { Configurador } from "./configurador";
-import { crearZip } from "./zip";
 
 const BASE = (import.meta.env["VITE_API_URL"] as string | undefined)?.replace(/\/$/, "") || "/api";
+const BACKEND_PORT = import.meta.env["VITE_BACKEND_PORT"] as string | undefined ?? "8084";
 
 export type EstadoTrabajo = "pendiente" | "planificando" | "ejecutando" | "completado" | "completado_con_errores" | "error";
 
@@ -19,6 +19,7 @@ export type TrabajoRespuesta = {
   vias: Record<string, string>;
   archivos: ArchivoInfo[];
   error: string | null;
+  advertencias: string[];
 };
 
 export const ESTADOS_FINALES: EstadoTrabajo[] = ["completado", "completado_con_errores", "error"];
@@ -33,7 +34,7 @@ type DetalleValidacion = { loc?: Array<string | number>; msg?: string };
 
 async function leerError(res: Response): Promise<ApiError> {
   let mensaje = [502, 503, 504].includes(res.status)
-    ? "No se pudo conectar con el backend. Verifica que esté corriendo en el puerto 8080."
+    ? `No se pudo conectar con el backend. Verifica que esté corriendo en localhost:${BACKEND_PORT}.`
     : `Error ${res.status} del servidor`;
   try {
     const body = (await res.json()) as { detail?: string | DetalleValidacion[] };
@@ -51,7 +52,7 @@ async function pedir<T>(ruta: string, init?: RequestInit): Promise<T> {
   try {
     res = await fetch(`${BASE}${ruta}`, { credentials: "include", ...init });
   } catch {
-    throw new ApiError("No se pudo conectar con el backend. Verifica que esté corriendo en el puerto 8080.", 0);
+    throw new ApiError(`No se pudo conectar con el backend. Verifica que esté corriendo en localhost:${BACKEND_PORT}.`, 0);
   }
   if (!res.ok) throw await leerError(res);
   return (await res.json()) as T;
@@ -93,21 +94,11 @@ function guardarBlob(blob: Blob, nombre: string) {
 // Arma el .zip en el navegador solo con los PDF, descargando cada uno desde
 // /orquestador/cursos/{id}/archivos/{nombre}. No usa el endpoint /descarga del backend,
 // que empaqueta también los .md.
-export async function descargarZipPdf(id: string, nombres: string[]) {
-  if (!nombres.length) throw new ApiError("El trabajo no tiene archivos PDF para descargar.", 404);
-  const entradas = await Promise.all(
-    nombres.map(async (nombre) => {
-      let res: Response;
-      try {
-        res = await fetch(`${BASE}/orquestador/cursos/${encodeURIComponent(id)}/archivos/${encodeURIComponent(nombre)}`, { credentials: "include" });
-      } catch {
-        throw new ApiError("No se pudo conectar con el backend.", 0);
-      }
-      if (!res.ok) throw await leerError(res);
-      return { nombre, datos: new Uint8Array(await res.arrayBuffer()) };
-    }),
+export function descargarZipPdf(id: string) {
+  return descargarBlob(
+    `/orquestador/cursos/${encodeURIComponent(id)}/descarga`,
+    `curso_${id.slice(0, 8)}.zip`,
   );
-  guardarBlob(crearZip(entradas), `curso_${id.slice(0, 8)}.zip`);
 }
 
 export function descargarArchivo(id: string, nombre: string) {
@@ -122,9 +113,9 @@ type RespuestaMe = { authenticated: boolean } & Partial<Usuario>;
 export async function usuarioActual(signal?: AbortSignal): Promise<Usuario | null> {
   let res: Response;
   try {
-    res = await fetch(`${BASE}/auth/me`, { credentials: "include", signal: signal ?? null });
+    res = await fetch(`${BASE}/auth/me`, { credentials: "include", cache: "no-store", signal: signal ?? null });
   } catch {
-    throw new ApiError("No se pudo conectar con el backend. Verifica que esté corriendo en el puerto 8080.", 0);
+    throw new ApiError(`No se pudo conectar con el backend. Verifica que esté corriendo en localhost:${BACKEND_PORT}.`, 0);
   }
   if (res.status === 401) return null;
   if (!res.ok) throw await leerError(res);
@@ -136,9 +127,6 @@ export async function usuarioActual(signal?: AbortSignal): Promise<Usuario | nul
 export const urlLoginGoogle = () => `${BASE}/auth/google`;
 
 export async function cerrarSesion() {
-  try {
-    await fetch(`${BASE}/auth/logout`, { credentials: "include" });
-  } catch {
-    // Si el backend no responde, la sesión local se limpia igual.
-  }
+  const res = await fetch(`${BASE}/auth/logout`, { credentials: "include", cache: "no-store" });
+  if (!res.ok) throw await leerError(res);
 }
