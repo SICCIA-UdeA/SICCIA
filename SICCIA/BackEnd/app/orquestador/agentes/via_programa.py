@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from ..schemas import Configurador, CursoPlan
+from ..plantillas import perfil_publico
 from .base import ViaBase
 
 
@@ -15,6 +16,11 @@ class ViaPrograma(ViaBase):
 
     def construir_subplantilla(self, config: Configurador, plan: CursoPlan) -> str:
         n_temas = sum(len(m.temas) for m in plan.modulos)
+        perfil = perfil_publico(plan.publico_objetivo)
+        nivel_previo = (
+            f"Considera como referencia el grado más bajo del rango ({perfil.grados[0]}.º)."
+            if perfil.grados else f"Redacta los conocimientos previos para el nivel {perfil.nivel}."
+        )
         return f"""# Plantilla específica: Programa del curso y presentaciones
 
 ## Tu tarea
@@ -28,7 +34,7 @@ Incluye, en este orden:
 3. `## Descripción del curso`
 4. `## Objetivo general` y `## Objetivos específicos` (uno o más por módulo).
 5. `## Conocimientos previos requeridos`: lista concreta de lo que el estudiante debe saber antes de empezar,
-   acorde al público objetivo.
+   acorde al público objetivo. {nivel_previo} Aplica estas reglas: {perfil.reglas}
 6. `## Metodología de aprendizaje`: explica el perfil pedagógico común, sus fases, el rol del estudiante,
    el rol del docente y las evidencias que se producirán; no te limites a repetir el nombre.
 7. `## Contenido programático`: cada módulo con sus temas (solo títulos) y una línea con el propósito del módulo.

@@ -67,18 +67,12 @@ class EvaluacionConfig(BaseModel):
         return self
 
 
-class EstiloConfig(BaseModel):
-    formato_salida: str = "pdf"
-    incluir_imagenes: bool = False
-
-
 class Configurador(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     datos: DatosCurso
     contenido: ContenidoConfig = Field(default_factory=ContenidoConfig)
     evaluacion: EvaluacionConfig = Field(default_factory=EvaluacionConfig)
-    estilo: EstiloConfig = Field(default_factory=EstiloConfig)
 
 
 # ------------------------------------------------------------------ plan del curso
@@ -115,3 +109,4 @@ class TrabajoRespuesta(BaseModel):
     vias: dict[str, str]
     archivos: list[ArchivoInfo]
     error: str | None = None
+    advertencias: list[str] = Field(default_factory=list)

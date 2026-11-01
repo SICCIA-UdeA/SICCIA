@@ -112,7 +112,15 @@ class Orquestador:
                 trabajo.estado = (
                     EstadoTrabajo.COMPLETADO if exitosas == total else EstadoTrabajo.COMPLETADO_CON_ERRORES
                 )
-                self._generar_pdfs(trabajo)
+                pdfs, errores_pdf = self._generar_pdfs(trabajo)
+                for advertencia in errores_pdf:
+                    log.warning("[%s] %s", trabajo.id, advertencia)
+                trabajo.advertencias.extend(errores_pdf)
+                if not pdfs:
+                    trabajo.estado = EstadoTrabajo.ERROR
+                    trabajo.error = "; ".join(errores_pdf) or "No se generó ningún PDF."
+                elif errores_pdf or exitosas != total:
+                    trabajo.estado = EstadoTrabajo.COMPLETADO_CON_ERRORES
             else:
                 trabajo.estado = EstadoTrabajo.ERROR
                 trabajo.error = "Ninguna vía logró completarse."
@@ -123,28 +131,30 @@ class Orquestador:
             trabajo.error = str(exc)
 
     # ------------------------------------------------------------- utilidades
-    def _generar_pdfs(self, trabajo: Trabajo) -> None:
-        """Convierte los .md a PDF y registra los PDF. Un fallo aquí no tumba el trabajo."""
+    def _generar_pdfs(self, trabajo: Trabajo) -> tuple[list[str], list[str]]:
+        """Convierte los .md a PDF y registra los PDF junto a errores explícitos."""
         try:
-            from .exportador_pdf import WEASYPRINT_OK, procesar_imagenes_y_pdf
+            from .exportador_pdf import procesar_imagenes_y_pdf
         except ImportError as exc:
-            log.warning("[%s] No se generaron PDF: no se pudo cargar el exportador (%s)", trabajo.id, exc)
-            return
-        if not WEASYPRINT_OK:
-            log.warning("[%s] No se generaron PDF: WeasyPrint no está instalado.", trabajo.id)
-            return
+            detalle = f"No se pudo cargar el exportador PDF: {exc}"
+            log.warning("[%s] %s", trabajo.id, detalle)
+            return [], [detalle]
         try:
-            procesar_imagenes_y_pdf(trabajo.dir_resultados, trabajo.archivos)
+            generados, errores = procesar_imagenes_y_pdf(trabajo.dir_resultados, trabajo.archivos)
         except Exception as exc:  # noqa: BLE001
             log.exception("[%s] Falló la generación de PDF: %s", trabajo.id, exc)
-            return
-        pdfs = sorted(trabajo.dir_resultados.glob("*.pdf"))
-        for ruta_pdf in pdfs:
+            return [], [f"Falló la generación de PDF: {exc}"]
+        pdfs = sorted(set(generados))
+        for nombre in pdfs:
+            ruta_pdf = trabajo.dir_resultados / nombre
             if ruta_pdf.name not in trabajo.archivos:
                 trabajo.archivos[ruta_pdf.name] = ArchivoGenerado(
                     nombre=ruta_pdf.name, contenido="", via="exportador"
                 )
         log.info("[%s] PDF registrados: %d", trabajo.id, len(pdfs))
+        if not pdfs and not errores:
+            errores.append("El exportador no generó ningún PDF.")
+        return pdfs, errores
 
     async def _correr_via(
         self, trabajo: Trabajo, via: ViaBase, madre: str, config: Configurador, plan: CursoPlan

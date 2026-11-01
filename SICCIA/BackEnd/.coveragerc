@@ -1,0 +1,15 @@
+[run]
+source = app, controller
+branch = True
+relative_files = True
+omit =
+    tests/*
+    venv/*
+    */__pycache__/*
+    app/orquestador/__main__.py
+    run.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:

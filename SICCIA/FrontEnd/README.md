@@ -12,7 +12,7 @@ Open your project in the [Lovable editor](https://lovable.dev) and keep building
 
 ## Development
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating). From `SICCIA/FrontEnd`, install dependencies with `bun install` (or `npm install`) and run `bun run dev` (or `npm run dev`). The frontend uses port `8085` by default; configure `FRONTEND_PORT`, `BACKEND_PORT` and optionally `BACKEND_URL` in `.env`. Open the app as `http://localhost:8085`.
 
 ```sh
 git clone <this-repository-url>

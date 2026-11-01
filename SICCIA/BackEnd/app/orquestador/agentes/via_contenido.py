@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from ..schemas import Configurador, CursoPlan
+from ..plantillas import perfil_publico, perfil_metodologia
 from .base import ViaBase
 
 
@@ -45,12 +46,8 @@ class ViaContenido(ViaBase):
             if c.formato_referencias else
             "No incluyas sección de referencias ni citas bibliográficas."
         )
-        imagenes = (
-            "Donde una imagen aporte, deja un marcador `![descripción](unsplash:palabras clave en inglés)`; "
-            "no uses otras URLs ni imágenes."
-            if config.estilo.incluir_imagenes else
-            "No incluyas imágenes."
-        )
+        perfil = perfil_publico(plan.publico_objetivo)
+        metodologia = perfil_metodologia(plan.metodologia)
         lista_extras = "\n".join(f"- {e}" for e in extras) or "- (ninguno)"
 
         return f"""# Plantilla específica: Contenido del curso
@@ -73,7 +70,12 @@ no los incluyas.
 ## Enlaces, referencias e imágenes
 - {enlaces}
 - {referencias}
-- {imagenes}
+- No incluyas imágenes ni marcadores de imagen.
+
+## Adaptación al público y la metodología
+- Aplica estas reglas del público: {perfil.reglas}
+- Aplica las fases de esta metodología en cada tema: {metodologia}
+- El taller de práctica debe respetar la duración orientativa de {perfil.duracion_actividad}.
 
 ## Estructura del documento `contenido_curso.md`
 - `# {plan.tema}` como título único.

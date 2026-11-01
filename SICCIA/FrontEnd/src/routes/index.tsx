@@ -32,7 +32,6 @@ export const Route = createFileRoute("/")({
 });
 
 type View = "dashboard" | "courses" | "generator" | "settings" | "result";
-type AuthStage = "welcome" | "login";
 
 const courses = [
   { initials: "JV", title: "Lenguaje de programación Java", meta: "Secundaria · 16 h · Learning to do", status: "Generado", tone: "success", progress: 100 },
@@ -59,14 +58,27 @@ function Index() {
   const [mobileMenu, setMobileMenu] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [noticeOpen, setNoticeOpen] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
   useEffect(() => {
     const ctrl = new AbortController();
     usuarioActual(ctrl.signal).then(u => setUser(u)).catch(() => setUser(null)).finally(() => { if (!ctrl.signal.aborted) setChecking(false); });
     return () => ctrl.abort();
   }, []);
-  const logout = async () => { await cerrarSesion(); setUser(null); setView("dashboard"); };
+  const logout = async () => {
+    let error: string | null = null;
+    if (user && !isDemo(user)) {
+      try { await cerrarSesion(); }
+      catch (e) { error = e instanceof Error ? e.message : "No se pudo cerrar la sesión del servidor."; }
+    }
+    setUser(null);
+    setView("dashboard");
+    setMobileMenu(false);
+    setCollapsed(false);
+    setNoticeOpen(false);
+    setLogoutError(error);
+  };
   if (checking) return <main className="grid min-h-screen place-items-center bg-background"><div className="flex flex-col items-center gap-3"><Logo /><p className="text-sm text-muted-foreground">Verificando sesión...</p></div></main>;
-  if (!user) return <AuthScreen onLogin={u => { setUser(u); setView("dashboard"); }} />;
+  if (!user) return <AuthScreen initialError={logoutError} onLogin={u => { setLogoutError(null); setUser(u); setView("dashboard"); }} />;
   return <AppShell user={user} view={view} setView={setView} mobileMenu={mobileMenu} setMobileMenu={setMobileMenu} collapsed={collapsed} setCollapsed={setCollapsed} noticeOpen={noticeOpen} setNoticeOpen={setNoticeOpen} onLogout={() => void logout()} />;
 }
 
@@ -75,10 +87,9 @@ const isDemo = (u: Usuario) => u.id === DEMO_USER.id;
 const LOGIN_POLL_MS = 1500;
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
 
-function AuthScreen({ onLogin }: { onLogin: (u: Usuario) => void }) {
-  const [stage, setStage] = useState<AuthStage>("welcome");
+function AuthScreen({ onLogin, initialError }: { onLogin: (u: Usuario) => void; initialError: string | null }) {
   const [waiting, setWaiting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError);
   const popupRef = useRef<Window | null>(null);
   const timerRef = useRef<number | undefined>(undefined);
   const wrongHost = typeof window !== "undefined" && window.location.hostname === "127.0.0.1";
@@ -107,23 +118,17 @@ function AuthScreen({ onLogin }: { onLogin: (u: Usuario) => void }) {
   return <main className="relative grid min-h-screen place-items-center overflow-hidden bg-background px-4 py-10">
     <div className="absolute inset-x-0 top-0 h-1 bg-primary" />
     <div className="absolute left-[8%] top-[10%] size-72 rounded-full bg-primary-soft/70 blur-3xl" />
-    {stage === "welcome" ? <section className="glass-panel relative z-10 w-full max-w-lg rounded-2xl p-8 text-center sm:p-10">
+    <section className="glass-panel relative z-10 w-full max-w-md rounded-2xl p-6 text-center sm:p-8">
       <div className="mb-8 flex justify-center"><Logo /></div>
-      <h1 className="text-3xl font-bold">Bienvenidos a SICCIA</h1>
-      <p className="mx-auto mt-3 max-w-sm text-sm text-muted-foreground">Sistema para crear cursos educativos estructurados con inteligencia artificial y criterio pedagógico.</p>
-      <Button className="mt-8 w-full sm:w-auto sm:px-8" onClick={() => setStage("login")}>Ingresar<ChevronRight className="size-4"/></Button>
-    </section> : <section className="glass-panel relative z-10 w-full max-w-md rounded-2xl p-6 text-center sm:p-8">
-      <div className="mb-8 flex justify-center"><Logo /></div>
-      <h1 className="text-2xl font-bold">Inicia sesión</h1>
-      <p className="mt-2 text-sm text-muted-foreground">Usa tu cuenta de Google para ingresar.</p>
+      <h1 className="text-2xl font-bold">Bienvenidos a SICCIA</h1>
+      <p className="mt-2 text-sm text-muted-foreground">Usa tu cuenta de Google para ingresar al panel docente.</p>
       <Button variant="outline" className="mt-8 h-11 w-full border-border bg-surface text-foreground shadow-sm hover:bg-muted hover:text-foreground" disabled={waiting} onClick={loginGoogle}><GoogleMark className="size-4"/>{waiting ? "Esperando a Google..." : "Iniciar sesión con Google"}</Button>
       {waiting && <p className="mt-3 text-xs text-muted-foreground">Completa el inicio de sesión en la ventana de Google.</p>}
       <div className="mt-6 flex items-center gap-3"><span className="h-px flex-1 bg-border"/><span className="text-xs text-muted-foreground">solo para pruebas</span><span className="h-px flex-1 bg-border"/></div>
       <Button variant="ghost" className="mt-3 w-full border border-dashed border-border text-muted-foreground" disabled={waiting} onClick={() => onLogin(DEMO_USER)}>Acceso simulado</Button>
       {error && <p className="mt-3 text-xs text-destructive">{error}</p>}
-      {wrongHost && <p className="mt-3 rounded-lg bg-warning-soft p-2 text-xs text-muted-foreground">Abre la aplicación en <b>http://localhost:5173</b> para que el inicio de sesión funcione.</p>}
-      <button type="button" className="mt-6 text-xs font-semibold text-primary hover:underline" onClick={() => { stop(null); popupRef.current?.close(); setStage("welcome"); }}>Volver</button>
-    </section>}
+      {wrongHost && <p className="mt-3 rounded-lg bg-warning-soft p-2 text-xs text-muted-foreground">Abre la aplicación en <b>http://localhost:{import.meta.env["VITE_FRONTEND_PORT"] ?? "8085"}</b> para que el inicio de sesión funcione.</p>}
+    </section>
   </main>;
 }
 
@@ -281,7 +286,6 @@ function Generator({ onComplete }: { onComplete: (job: TrabajoRespuesta, config:
   const [closure, setClosure] = useState(true);
   const [examples, setExamples] = useState(true);
   const [workshops, setWorkshops] = useState(true);
-  const images = false;
   const [mods, setMods] = useState<string[]>([]);
   const [newMod, setNewMod] = useState("");
   const [questionTypes, setQuestionTypes] = useState<string[]>([]);
@@ -322,7 +326,7 @@ function Generator({ onComplete }: { onComplete: (job: TrabajoRespuesta, config:
   const toggleQuestion = (q: string) => setQuestionTypes(qs => qs.includes(q) ? qs.filter(x => x !== q) : [...qs, q]);
   const config = construirConfigurador({
     tema, publico: audience, duracion: durationLabels[duration] ?? "", metodologia: method, modulos: mods,
-    ejemplos: examples, talleres: workshops, cierre: closure, tiposPregunta: questionTypes, actividades: acts, imagenes: images,
+    ejemplos: examples, talleres: workshops, cierre: closure, tiposPregunta: questionTypes, actividades: acts,
   });
   const errors = validarConfigurador(config);
   const evalErrors = errors.filter(e => /porcentaje|actividad/i.test(e));
@@ -350,6 +354,7 @@ function Generator({ onComplete }: { onComplete: (job: TrabajoRespuesta, config:
     <span className={cn("mx-auto grid size-16 place-items-center rounded-full", failed ? "bg-warning-soft" : "bg-primary-soft")}>{failed ? <CircleAlert className="size-7 text-warning"/> : <Bot className="size-7 spin-slow text-primary"/>}</span>
     <h2 className="mt-6 text-xl font-bold">{failed ? "No se pudo generar el curso" : "Orquestando tu curso"}</h2>
     <p className="mt-2 text-sm text-muted-foreground">{failed ?? (job ? `Trabajo ${job.id.slice(0, 8)} · estado: ${estadoLabels[job.estado]}` : "Enviando configuración al backend...")}</p>
+    {!!job?.advertencias.length && <ul className="mx-auto mt-4 max-w-md list-disc space-y-1 pl-5 text-left text-xs text-muted-foreground">{job.advertencias.map((advertencia, i) => <li key={`${i}-${advertencia}`}>{advertencia}</li>)}</ul>}
     {!failed && <><div className="mx-auto mt-7 h-2 max-w-md overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-all" style={{width:`${progress}%`}}/></div><p className="mt-3 text-sm font-semibold text-primary">{progress}%</p></>}
     <div className="mt-8 grid gap-2 text-left sm:grid-cols-2">{phases.map(([k, x]) => { const s = stepState(k); return <div key={k} className={cn("rounded-lg border p-3 text-xs", s === "done" ? "border-success/20 bg-success-soft text-success" : s === "active" ? "border-primary/30 bg-primary-soft text-primary pulse-soft" : s === "fail" ? "border-destructive/30 bg-warning-soft text-destructive" : "border-border bg-muted text-muted-foreground")}>{s === "done" && <Check className="mr-1 inline size-3"/>}{s === "fail" && <X className="mr-1 inline size-3"/>}{x}</div>; })}</div>
     {failed && <div className="mt-7 flex flex-wrap justify-center gap-2"><Button variant="secondary" onClick={reset}>Volver al configurador</Button><Button onClick={generate}>Reintentar</Button></div>}
@@ -375,8 +380,7 @@ function Generator({ onComplete }: { onComplete: (job: TrabajoRespuesta, config:
         {yesNo("Cierre por módulo", "Genera un resumen al final de cada módulo.", closure, setClosure)}
         {yesNo("Ejemplos prácticos", "Incluye ejemplos en cada tema.", examples, setExamples)}
         {yesNo("Talleres de práctica", "Un taller sin nota por módulo.", workshops, setWorkshops)}
-        <div aria-disabled="true" className="flex items-center justify-between gap-4 rounded-lg border border-dashed border-border bg-muted/40 p-4"><div><p className="text-sm font-semibold text-muted-foreground">Imágenes <span className="ml-2 rounded-full bg-primary-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">Versión 2.0</span></p><p className="text-xs text-muted-foreground">Generación de imágenes disponible en la versión 2.0.</p></div><div className="flex gap-2"><button type="button" disabled className="cursor-not-allowed rounded-lg border border-border bg-surface px-3 py-2 text-sm text-muted-foreground opacity-50">Sí</button><button type="button" disabled className="cursor-not-allowed rounded-lg border border-border bg-surface px-3 py-2 text-sm text-muted-foreground opacity-50">No</button></div></div>
-        <div className="grid gap-3 sm:grid-cols-2"><div className="rounded-lg border border-border bg-muted/50 p-4"><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Por cada módulo</p><Auto items={["Introducción","Objetivos","Temas",...(closure?["Resumen / cierre"]:[]),...(workshops?["Taller de práctica"]:[])]}/></div><div className="rounded-lg border border-border bg-muted/50 p-4"><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Por cada tema</p><Auto items={["Explicación","Diapositivas",...(examples?["Ejemplo"]:[]),...(images?["Imagen"]:[])]}/></div></div>
+        <div className="grid gap-3 sm:grid-cols-2"><div className="rounded-lg border border-border bg-muted/50 p-4"><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Por cada módulo</p><Auto items={["Introducción","Objetivos","Temas",...(closure?["Resumen / cierre"]:[]),...(workshops?["Taller de práctica"]:[])]}/></div><div className="rounded-lg border border-border bg-muted/50 p-4"><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Por cada tema</p><Auto items={["Explicación","Diapositivas",...(examples?["Ejemplo"]:[])]}/></div></div>
       </div>}
       {step===3 && <div className="space-y-5"><div><h3 className="font-bold">Nivel 4 · Evaluaciones</h3><p className="text-sm text-muted-foreground">Define los tipos de pregunta y las actividades calificables con su peso en la nota final.</p></div>
         <div><p className="mb-1.5 text-xs font-medium text-muted-foreground">Tipos de pregunta</p><div className="flex flex-wrap gap-2">{questionTypeOptions.map(q=><Chip key={q} active={questionTypes.includes(q)} onClick={()=>toggleQuestion(q)}>{q}</Chip>)}</div></div>
@@ -420,7 +424,7 @@ function Result({ go, job, config }: { go: (v: View) => void; job: TrabajoRespue
       <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold", ok ? "bg-success-soft text-success" : "bg-warning-soft text-warning")}>{ok ? <Check className="size-3"/> : <CircleAlert className="size-3"/>}{estadoLabels[job.estado]}</span>
       <h2 className="mt-3 text-xl font-bold">{config.datos.tema}</h2>
       <p className="mt-1 text-sm text-muted-foreground">{[config.datos.duracion_estimada, c.modulos_modo === "manual" ? `${c.modulos.length} módulos` : "Módulos automáticos", config.datos.metodologia].filter(Boolean).join(" · ")}</p>
-    </div><Button disabled={!pdfs.length || busy !== null} title={pdfs.length ? undefined : "No hay PDF para descargar"} onClick={() => run("zip", () => descargarZipPdf(job.id, pdfs.map(p => p.nombre)))}><Download className="size-4"/>{busy === "zip" ? "Descargando..." : `Descargar PDF (.zip)`}</Button></div>
+    </div><Button disabled={!pdfs.length || busy !== null} title={pdfs.length ? undefined : "No hay PDF para descargar"} onClick={() => run("zip", () => descargarZipPdf(job.id))}><Download className="size-4"/>{busy === "zip" ? "Descargando..." : `Descargar PDF (.zip)`}</Button></div>
     {error && <p className="mt-3 text-xs text-destructive">{error}</p>}</section>
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
       <section className="glass-panel overflow-hidden rounded-xl"><div className="border-b border-border p-5"><h3 className="font-bold">Materiales generados</h3><p className="text-sm text-muted-foreground">{archivosDescargables.length} archivo(s) PDF listos para descargar.</p></div>
@@ -430,6 +434,7 @@ function Result({ go, job, config }: { go: (v: View) => void; job: TrabajoRespue
       <aside className="space-y-4">
         <section className="glass-panel rounded-xl p-5"><h3 className="font-bold">Vías de trabajo</h3><div className="mt-4 space-y-3 text-sm">{Object.entries(job.vias).map(([v, s]) => <div key={v} className="flex items-start justify-between gap-3"><span className="text-muted-foreground">{viaLabels[v] ?? v}</span><b className={cn("text-right", viaCompletada(s) ? "text-success" : s === "omitida" || s === "pendiente" ? "text-muted-foreground" : s === "en_curso" ? "text-primary" : "text-destructive")}>{viaStatusLabel(s)}</b></div>)}</div><p className="mt-4 text-xs text-muted-foreground">Trabajo {job.id.slice(0, 8)} · {new Date(job.creado_en).toLocaleString("es-CO")}</p></section>
         {job.error && <section className="rounded-xl border border-warning/25 bg-warning-soft p-5"><CircleAlert className="size-5 text-warning"/><p className="mt-2 text-xs text-muted-foreground">{job.error}</p></section>}
+        {!!job.advertencias.length && <section className="rounded-xl border border-warning/25 bg-warning-soft p-5"><h3 className="font-semibold">Advertencias</h3><ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">{job.advertencias.map((advertencia, i) => <li key={`${i}-${advertencia}`}>{advertencia}</li>)}</ul></section>}
         <Button className="w-full" variant="secondary" onClick={() => go("generator")}>Generar otro curso</Button>
         <Button className="w-full" variant="ghost" onClick={() => go("dashboard")}>Volver al panel</Button>
       </aside>

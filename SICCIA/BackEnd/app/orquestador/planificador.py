@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import json
 import logging
+import unicodedata
 
 from pydantic import ValidationError
 
 from .ejecutores import EjecutorLLM
+from .plantillas import perfil_metodologia, perfil_publico
 from .schemas import Configurador, CursoPlan, ModuloPlan
 
 log = logging.getLogger(__name__)
@@ -100,21 +102,33 @@ class Planificador:
 
     @staticmethod
     def _prompt(c: Configurador, faltantes: list[str]) -> str:
+        publico = perfil_publico(c.datos.publico_objetivo or "")
+        cantidad_temas = "2 a 4" if publico.nivel in {"primaria", "inicial/preescolar"} else "3 a 6"
         dados = {
             "datos": c.datos.model_dump(exclude_none=True),
             "modulos_modo": c.contenido.modulos_modo,
             "num_modulos": c.contenido.num_modulos,
             "modulos_dados": [m.model_dump() for m in c.contenido.modulos],
         }
+        grados = (
+            f"{publico.grados[0]} a {publico.grados[1]}"
+            if publico.grados else "no especificados"
+        )
         return (
             "Diseña la base de un curso a partir de lo que dio el usuario.\n\n"
             f"Datos del usuario (JSON):\n{json.dumps(dados, ensure_ascii=False, indent=2)}\n\n"
             f"Debes diseñar lo que falta: {', '.join(faltantes)}.\n\n"
+            f"Perfil del público: nivel {publico.nivel}, grados {grados}, "
+            f"edad aproximada {publico.edad_aproximada}.\n{publico.reglas}\n"
+            f"Perfil de metodología:\n{perfil_metodologia(c.datos.metodologia or '')}\n\n"
             "Reglas:\n"
             "- Conserva EXACTAMENTE los valores que el usuario sí dio (tema, módulos y temas dados).\n"
+            "- En modo manual, conserva exactamente títulos, cantidad y orden de los módulos del usuario; "
+            "completa solamente los temas vacíos.\n"
             "- De cada tema entrega solo el título, sin explicaciones ni contenido.\n"
             "- Si hay num_modulos, genera exactamente esa cantidad; si no, elige una cantidad razonable.\n"
-            "- Cada módulo tiene entre 2 y 6 temas, ordenados de lo básico a lo avanzado.\n"
+            f"- Cada módulo tiene {cantidad_temas} temas, ordenados de lo simple a lo complejo, "
+            "con títulos adecuados a la edad.\n"
             "- Dimensiona módulos y temas según la duración estimada y el público objetivo.\n"
             "- Escribe en español.\n\n"
             f"Responde solo con un JSON con este formato:\n{_FORMATO}"
@@ -145,11 +159,14 @@ class Planificador:
                 if dado.temas:
                     temas = dado.temas
                 else:
-                    temas = disenados.get(dado.titulo.strip().lower()) or (
-                        plan.modulos[i].temas if i < len(plan.modulos) else None
-                    )
+                    temas = disenados.get(dado.titulo.strip().lower())
+                    if not temas and i < len(plan.modulos):
+                        temas = plan.modulos[i].temas
                 if not temas:
-                    raise ValueError(f"el plan no incluye temas para el módulo '{dado.titulo}'")
+                    raise ValueError(
+                        f"el planificador no devolvió temas para el módulo manual "
+                        f"'{dado.titulo}' (posición {i + 1}); no se pueden inventar."
+                    )
                 modulos.append(ModuloPlan(titulo=dado.titulo, temas=temas))
         return CursoPlan(
             tema=c.datos.tema,
@@ -163,9 +180,42 @@ class Planificador:
     def _plan_simulado(c: Configurador) -> CursoPlan:
         """Plan determinista para el modo mock (sin modelo conectado)."""
         if c.contenido.modulos_modo == "manual" and c.contenido.modulos:
+            temas_por_modulo = {
+                "sumas": ["Sumas sin llevar", "Sumas llevando", "Problemas de suma"],
+                "restas": ["Restas sin prestar", "Restas prestando", "Problemas de resta"],
+                "multiplicacion": [
+                    "Multiplicación como grupos iguales",
+                    "Tablas de multiplicar",
+                    "Problemas de multiplicación",
+                ],
+                "division": [
+                    "Repartos en partes iguales",
+                    "Divisiones exactas",
+                    "Problemas de división",
+                ],
+            }
+
+            def temas_simulados(titulo: str) -> list[str]:
+                clave = "".join(
+                    caracter
+                    for caracter in unicodedata.normalize("NFD", titulo.lower())
+                    if unicodedata.category(caracter) != "Mn"
+                )
+                return temas_por_modulo.get(
+                    clave,
+                    [
+                        f"Conceptos básicos de {titulo}",
+                        f"Procedimientos de {titulo}",
+                        f"Problemas contextualizados de {titulo}",
+                    ],
+                )
+
             modulos = [
-                ModuloPlan(titulo=m.titulo, temas=m.temas or [f"Tema {i}.{j}" for j in (1, 2, 3)])
-                for i, m in enumerate(c.contenido.modulos, start=1)
+                ModuloPlan(
+                    titulo=m.titulo,
+                    temas=m.temas or temas_simulados(m.titulo),
+                )
+                for m in c.contenido.modulos
             ]
         else:
             n = c.contenido.num_modulos or 3

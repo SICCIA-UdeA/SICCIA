@@ -7,6 +7,7 @@ Cada vía: (1) construye su subplantilla a partir del configurador y del plan,
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from abc import ABC, abstractmethod
@@ -99,10 +100,10 @@ class ViaBase(ABC):
         subplantilla = self.construir_subplantilla(config, plan)
         prompt = self.construir_prompt(plantilla_madre, subplantilla)
         texto = await self._ejecutor.generar(rol=self.rol, instrucciones=self.instrucciones, prompt=prompt)
-        archivos = [
-            ArchivoGenerado(nombre=n, contenido=self._postprocesar_archivo(n, c), via=self.rol)
-            for n, c in self._separar_archivos(texto).items()
-        ]
+        archivos = []
+        for nombre, contenido in self._separar_archivos(texto).items():
+            procesado = await asyncio.to_thread(self._postprocesar_archivo, nombre, contenido)
+            archivos.append(ArchivoGenerado(nombre=nombre, contenido=procesado, via=self.rol))
         return ResultadoVia(via=self.rol, subplantilla=subplantilla, archivos=archivos)
 
     def _postprocesar_archivo(self, nombre: str, contenido: str) -> str:

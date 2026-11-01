@@ -63,7 +63,7 @@ def get_google_authorize_redirect(redirect_uri):
     el flujo de login (un atacante no puede forzar a un usuario a
     "aceptar" una sesión iniciada por otra persona).
     """
-    return oauth.google.authorize_redirect(redirect_uri)
+    return oauth.google.authorize_redirect(redirect_uri, prompt="select_account")
 
 
 def get_google_user_info():
