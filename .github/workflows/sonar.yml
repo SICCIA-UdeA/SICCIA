@@ -1,0 +1,42 @@
+name: SonarQube Cloud
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    types: [ opened, synchronize, reopened ]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  analysis:
+    name: Análisis de código
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0   # historial completo: necesario para el blame
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Instalar librerías del sistema (WeasyPrint)
+        run: sudo apt-get update && sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0
+
+      - name: Instalar dependencias
+        run: pip install -r dependencias.txt
+
+      - name: Ejecutar pruebas con cobertura
+        working-directory: SICCIA/BackEnd
+        run: python -m pytest
+
+      - name: SonarQube Cloud Scan
+        uses: SonarSource/sonarqube-scan-action@v7
+        with:
+          projectBaseDir: SICCIA/BackEnd
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
