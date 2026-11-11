@@ -44,6 +44,67 @@ def test_perfil_publico_desconocido_devuelve_perfil_general():
     assert perfil.grados is None
 
 
+def test_perfil_publico_secundaria_reconoce_grados():
+    # Arrange
+    texto = "Secundaria · Grados 6 a 9"
+
+    # Act
+    perfil = perfil_publico(texto)
+
+    # Assert
+    assert perfil.nivel == "secundaria"
+    assert perfil.grados == (6, 9)
+
+
+@pytest.mark.parametrize(
+    ("duracion", "esperado"),
+    [
+        ("8 a 12 horas", (8, 12)),
+        ("de 5 hasta 10 horas", (5, 10)),
+        ("30 horas", (30, 30)),
+        ("sin dato", (3, 3)),
+    ],
+)
+def test_rango_horas_reconoce_formatos_y_caso_sin_dato(duracion, esperado):
+    # Arrange
+
+    # Act
+    resultado = _rango_horas(duracion, 3)
+
+    # Assert
+    assert resultado == esperado
+
+
+def test_rango_horas_entrada_adversa_responde_en_tiempo_lineal():
+    # Arrange
+    duracion = "1" * 50_000 + "x"
+
+    # Act
+    import time
+
+    inicio = time.perf_counter()
+    rango = _rango_horas(duracion, 3)
+
+    # Assert
+    assert rango == (3, 3)
+    assert time.perf_counter() - inicio < 1
+
+
+def test_perfil_publico_entrada_adversa_responde_en_tiempo_lineal():
+    # Arrange
+    publico = "primaria 3" + " " * 50_000 + "x"
+
+    # Act
+    import time
+
+    inicio = time.perf_counter()
+    perfil = perfil_publico(publico)
+
+    # Assert
+    assert perfil.nivel == "primaria"
+    assert time.perf_counter() - inicio < 1
+
+
 def test_perfil_metodologia_resolucion_problemas_incluye_fases():
     # Arrange
     metodologia = "Resolución de problemas"

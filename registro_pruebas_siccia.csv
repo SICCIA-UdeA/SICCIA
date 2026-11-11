@@ -1,0 +1,13 @@
+Fecha;Proveedor;Modelo;Via_Rol;Prompt_Tokens;Completion_Tokens;Tiempo_Segundos
+2026-10-27 02:03;openai_like;nvidia/nemotron-3-ultra-550b-a55b:free;planificador;389;627;15.4
+2026-10-27 02:33;openai_like;nvidia/nemotron-3-ultra-550b-a55b:free;planificador;389;650;8.4
+2026-11-10 22:01;openai_like;nvidia/nemotron-3.5-lightning:free;planificador;788;2161;49.9
+2026-11-10 22:04;gemini;gemini-3.8-flash;programa;1821;9701;201.9
+2026-11-10 22:08;openai_like;nvidia/nemotron-3.5-lightning:free;contenido;1881;29765;427.3
+2026-11-10 22:09;openai_like;nvidia/nemotron-3.5-lightning:free;verificacion;13012;7305;80.2
+2026-11-10 22:12;openai_like;nvidia/nemotron-3.5-lightning:free;evaluacion;13312;22912;239.4
+2026-11-10 22:16;openai_like;nvidia/nemotron-3.5-lightning:free;planificador;869;3671;32.7
+2026-11-10 22:19;gemini;gemini-3.8-flash;programa;1939;8051;165.9
+2026-11-10 22:20;openai_like;nvidia/nemotron-3.5-lightning:free;contenido;2086;26969;241.6
+2026-11-10 22:22;openai_like;nvidia/nemotron-3.5-lightning:free;verificacion;9412;12571;125.9
+2026-11-10 22:24;openai_like;nvidia/nemotron-3.5-lightning:free;evaluacion;9712;28984;234.8

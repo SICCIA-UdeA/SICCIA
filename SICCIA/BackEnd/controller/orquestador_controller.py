@@ -43,7 +43,7 @@ class OrquestadorController:
             vias=dict(trabajo.vias),
             archivos=[
                 ArchivoInfo(nombre=a.nombre, via=a.via, tamano_bytes=self._tamano(trabajo, a))
-                for a in trabajo.archivos.values()
+                for a in list(trabajo.archivos.values())
             ],
             error=trabajo.error,
             advertencias=list(trabajo.advertencias),

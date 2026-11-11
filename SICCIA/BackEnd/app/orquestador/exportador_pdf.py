@@ -34,8 +34,7 @@ GENERAR_VERSION_ESTUDIANTE = False
 #     terminos = palabras_clave.strip().replace(" ", ",")
 #     return f"https://source.unsplash.com/800x400/?{terminos}"
 _RE_IMAGEN_MARKDOWN = re.compile(r"!\[([^\]]*)\]\([^)]*\)")
-_RE_SEPARADOR = re.compile(r"\s+-\s+(?=\S)")
-_RE_NUMERADO = re.compile(r"^(\s*\d+\.\s+)(.*)$")
+_RE_SEPARADOR = re.compile(r"(?<!\s)\s+-\s+(?=\S)")
 _RE_OPCION = re.compile(r"^[A-Da-d][\)\.]\s")
 _RE_CODIGO_HTML = re.compile(r"(<pre>.*?</pre>|<code>.*?</code>)", re.S)
 _RE_FRACCION = re.compile(r"(?<![\w/.])(\d{1,4})/(\d{1,4})(?![\w/.])")
@@ -65,6 +64,24 @@ def _partir(cuerpo: str):
     if len(partes) >= 3:
         return partes  # ítems de una lista pegados en una sola línea
     return None
+
+
+def _parsear_numerado(linea: str) -> tuple[str, str] | None:
+    """Devuelve (prefijo, cuerpo) si la línea es '  12.  texto'; si no, None. Tiempo lineal."""
+    i, n = 0, len(linea)
+    while i < n and linea[i].isspace():
+        i += 1
+    j = i
+    while j < n and linea[j].isdecimal():
+        j += 1
+    if j == i or j >= n or linea[j] != ".":
+        return None
+    k = j + 1
+    while k < n and linea[k].isspace():
+        k += 1
+    if k == j + 1:
+        return None
+    return linea[:k], linea[k:]
 
 
 def separar_listas_pegadas(texto: str) -> str:
@@ -102,9 +119,9 @@ def separar_listas_pegadas(texto: str) -> str:
         if strip.startswith("- "):
             tipo, prefijo, cuerpo = "item", "", strip[2:]
         else:
-            m = _RE_NUMERADO.match(linea)
+            m = _parsear_numerado(linea)
             if m:
-                tipo, prefijo, cuerpo = "numerado", m.group(1), m.group(2)
+                tipo, prefijo, cuerpo = "numerado", m[0], m[1]
             else:
                 tipo, prefijo, cuerpo = "texto", "", strip
 

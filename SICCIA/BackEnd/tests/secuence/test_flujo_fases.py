@@ -1,8 +1,6 @@
 import asyncio
+import threading
 
-import pytest
-
-from app.orquestador.agentes.base import ArchivoGenerado
 from app.orquestador.trabajos import EstadoTrabajo
 from tests.factories import crear_configurador
 
@@ -60,6 +58,83 @@ async def test_orquestador_fase_dos_espera_contenido_y_recibe_texto_real(
     assert "Texto del contenido." in prompt_eval
     assert [rol for rol, _ in llamadas].index("contenido") < [rol for rol, _ in llamadas].index("evaluacion")
     assert trabajo.estado is EstadoTrabajo.COMPLETADO
+
+
+def test_via_contenido_indica_formato_claro_para_duracion_sin_rango(plan_referencia, config_referencia):
+    # Arrange
+    from app.orquestador.agentes.via_contenido import ViaContenido
+
+    via = ViaContenido(None)
+
+    # Act
+    plantilla = via.construir_subplantilla(config_referencia, plan_referencia)
+
+    # Assert
+    assert "No escribas rangos como `1-1`" in plantilla
+    assert "si las horas mínimas y máximas son iguales" in plantilla
+
+
+async def test_orquestador_generacion_pdf_no_bloquea_latido(
+    orquestador_mock, config_referencia, monkeypatch
+):
+    # Arrange
+    orquestador = orquestador_mock()
+    ticks = 0
+    pdf_iniciado = threading.Event()
+    liberar_pdf = threading.Event()
+
+    def generar_pdfs_lento(trabajo):
+        pdf_iniciado.set()
+        liberar_pdf.wait()
+        return ["curso.pdf"], []
+
+    monkeypatch.setattr(orquestador, "_generar_pdfs", generar_pdfs_lento)
+
+    async def latido():
+        nonlocal ticks
+        while True:
+            ticks += 1
+            await asyncio.sleep(0.01)
+
+    trabajo = orquestador.trabajos.crear()
+    tarea_latido = asyncio.create_task(latido())
+
+    # Act
+    tarea_proceso = asyncio.create_task(orquestador._procesar(trabajo, config_referencia))
+    while not pdf_iniciado.is_set():
+        await asyncio.sleep(0.01)
+    assert not trabajo.terminado
+    await asyncio.sleep(0.1)
+    liberar_pdf.set()
+    await tarea_proceso
+    tarea_latido.cancel()
+    try:
+        await tarea_latido
+    except asyncio.CancelledError:
+        pass
+
+    # Assert
+    assert ticks >= 5
+    assert trabajo.estado is EstadoTrabajo.COMPLETADO
+
+
+async def test_orquestador_generacion_pdf_con_error_termina_en_error(
+    orquestador_mock, config_referencia, monkeypatch
+):
+    # Arrange
+    orquestador = orquestador_mock()
+
+    def generar_pdfs_con_error(trabajo):
+        raise RuntimeError("fallo PDF")
+
+    monkeypatch.setattr(orquestador, "_generar_pdfs", generar_pdfs_con_error)
+
+    # Act
+    trabajo = await _procesar(orquestador, config_referencia)
+
+    # Assert
+    assert trabajo.estado is EstadoTrabajo.ERROR
+    assert trabajo.error == "fallo PDF"
 
 
 async def test_orquestador_sin_contenido_omite_fase_dos_y_degrada_estado(

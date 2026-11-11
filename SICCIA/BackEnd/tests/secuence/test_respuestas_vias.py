@@ -1,5 +1,6 @@
 import asyncio
 import threading
+import time
 from urllib.error import HTTPError
 
 import pytest
@@ -43,6 +44,40 @@ def test_via_separar_archivos_ignora_nombre_no_esperado():
 
     # Assert
     assert "desconocido.md" not in archivos
+
+
+@pytest.mark.parametrize(
+    ("texto", "esperado"),
+    [
+        ("```markdown\nhola\n```", "hola\n"),
+        ("```md\n\n  hola\n```", "hola\n"),
+        ("texto sin cerca", "texto sin cerca\n"),
+        ("```python\ncodigo\n```", "```python\ncodigo\n```\n"),
+    ],
+)
+def test_via_limpiar_reconoce_cercas_markdown_y_conserva_otras(texto, esperado):
+    # Arrange
+    via = ViaEvaluacion(FakeEjecutor())
+
+    # Act
+    resultado = via._limpiar(texto)
+
+    # Assert
+    assert resultado == esperado
+
+
+def test_via_limpiar_entrada_adversa_responde_en_tiempo_lineal():
+    # Arrange
+    via = ViaEvaluacion(FakeEjecutor())
+    texto = "```\n" + "\n" * 50_000 + "x"
+    inicio = time.perf_counter()
+
+    # Act
+    resultado = via._limpiar(texto)
+
+    # Assert
+    assert resultado.endswith("\n")
+    assert time.perf_counter() - inicio < 1
 
 
 @pytest.mark.parametrize("texto", ["None", "null"])

@@ -82,7 +82,10 @@ no los incluyas.
 - `## Módulo N: <título>` con una breve introducción del módulo.
 - `### N.M <título del tema>` por cada tema, con: objetivos de aprendizaje, explicación desarrollada
   (conceptos, definiciones, procedimientos) y puntos clave. Añade el ejemplo práctico si está activado.
-- En cada tema incluye una línea `Duración sugerida: X-Y horas` usando exactamente la tabla común.
+- En cada tema incluye una línea de duración usando exactamente la tabla común:
+  si las horas mínimas y máximas son iguales, escribe `Duración sugerida: X hora` o
+  `Duración sugerida: X horas` según corresponda; si son distintas, escribe
+  `Duración sugerida: X-Y horas`. No escribas rangos como `1-1`.
   Esa línea es informativa y no debe sumarse de nuevo a la duración total.
 - Aplica las fases del perfil pedagógico común en cada tema: incluye una actividad o reto observable,
   instrucciones para realizarlo y una evidencia que el estudiante debe producir.

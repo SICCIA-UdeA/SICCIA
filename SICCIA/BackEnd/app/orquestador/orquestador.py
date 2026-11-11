@@ -109,18 +109,19 @@ class Orquestador:
             total = len(vias_fase_1) + (len(vias_fase_2) if "contenido_curso.md" in trabajo.archivos else 0)
 
             if exitosas > 0:
-                trabajo.estado = (
-                    EstadoTrabajo.COMPLETADO if exitosas == total else EstadoTrabajo.COMPLETADO_CON_ERRORES
-                )
-                pdfs, errores_pdf = self._generar_pdfs(trabajo)
+                pdfs, errores_pdf = await asyncio.to_thread(self._generar_pdfs, trabajo)
                 for advertencia in errores_pdf:
                     log.warning("[%s] %s", trabajo.id, advertencia)
                 trabajo.advertencias.extend(errores_pdf)
                 if not pdfs:
                     trabajo.estado = EstadoTrabajo.ERROR
                     trabajo.error = "; ".join(errores_pdf) or "No se generó ningún PDF."
-                elif errores_pdf or exitosas != total:
-                    trabajo.estado = EstadoTrabajo.COMPLETADO_CON_ERRORES
+                else:
+                    trabajo.estado = (
+                        EstadoTrabajo.COMPLETADO
+                        if exitosas == total and not errores_pdf
+                        else EstadoTrabajo.COMPLETADO_CON_ERRORES
+                    )
             else:
                 trabajo.estado = EstadoTrabajo.ERROR
                 trabajo.error = "Ninguna vía logró completarse."

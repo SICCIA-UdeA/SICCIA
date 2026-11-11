@@ -26,7 +26,6 @@ from pathlib import Path
 
 from dotenv import dotenv_values
 
-ROLES = ("planificador", "evaluacion", "contenido", "programa", "verificacion")
 _ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 _DOTENV = dotenv_values(_ENV_FILE)
 

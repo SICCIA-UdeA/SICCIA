@@ -1,0 +1,27 @@
+{
+  "datos": {
+    "tema": "El Sistema Solar y la exploración espacial",
+    "publico_objetivo": "Estudiantes de 5° grado de primaria (10 a 11 años)",
+    "duracion_estimada": "15 horas",
+    "metodologia": "Aprendizaje lúdico y visual, usando analogías simples (ej. tamaños comparados con frutas) y lenguaje amigable para niños"
+  },
+  "contenido": {
+    "modulos_modo": "automatico",
+    "num_modulos": 3,
+    "incluir_ejemplos_practicos": true,
+    "incluir_talleres_practica": true,
+    "incluir_cierre_por_modulo": true
+  },
+  "evaluacion": {
+    "tipos_pregunta": ["selección múltiple", "falso/verdadero", "pregunta abierta de imaginación"],
+    "actividades": [
+      {"tipo": "taller_visual", "cantidad": 2, "porcentaje": 60},
+      {"tipo": "quiz_divertido", "cantidad": 1, "porcentaje": 40}
+    ],
+    "total_actividades": 3
+  },
+  "estilo": {
+    "formato_salida": "pdf",
+    "incluir_imagenes": true
+  }
+}

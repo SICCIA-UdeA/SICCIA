@@ -62,6 +62,50 @@ def test_auth_callback_usuario_crea_sesion_temporal_y_redirige(cliente_flask, mo
         assert sesion.permanent is False
 
 
+def test_auth_callback_sesion_establece_cookie_segura(cliente_flask, monkeypatch):
+    # Arrange
+    monkeypatch.setattr(
+        "controller.auth_controller.get_google_user_info",
+        lambda: {"id": "id", "name": "Persona", "email": "persona@localhost", "picture": None},
+    )
+
+    # Act
+    respuesta = cliente_flask.get("/auth/google/callback")
+
+    # Assert
+    cookie = respuesta.headers["Set-Cookie"]
+    assert "HttpOnly" in cookie
+    assert "SameSite=Lax" in cookie
+
+
+def test_auth_rutas_con_cambios_de_estado_solo_permiten_logout():
+    # Arrange
+    from app import create_app
+
+    # Act
+    rutas = {
+        (regla.rule, frozenset(regla.methods & {"POST", "PUT", "PATCH", "DELETE"}))
+        for regla in create_app().url_map.iter_rules()
+        if regla.methods & {"POST", "PUT", "PATCH", "DELETE"}
+    }
+
+    # Assert
+    assert rutas == {("/auth/logout", frozenset({"POST"}))}
+
+
+def test_auth_callback_estado_invalido_no_crea_sesion(cliente_flask):
+    # Arrange
+    cliente = cliente_flask
+
+    # Act
+    respuesta = cliente.get("/auth/google/callback?state=invalido&code=x")
+
+    # Assert
+    assert respuesta.status_code == 401
+    assert respuesta.json == {"error": "No se pudo completar la autenticación con Google"}
+    assert cliente.get("/auth/me").status_code == 401
+
+
 def test_auth_callback_error_devuelve_401_y_registra_excepcion(cliente_flask, monkeypatch, caplog):
     # Arrange
     monkeypatch.setattr(

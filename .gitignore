@@ -18,5 +18,8 @@ SICCIA/FrontEnd/package-lock.json
 SICCIA/FrontEnd/src/routeTree.gen.ts
 SICCIA.zip
 .env
+.env.save
 venv/
 __pycache__/
+
+repomix-output.xml

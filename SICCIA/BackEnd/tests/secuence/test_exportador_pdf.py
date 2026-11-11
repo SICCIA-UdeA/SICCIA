@@ -1,6 +1,7 @@
 import builtins
 import importlib
 import json
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -44,6 +45,65 @@ def test_exportador_partir_detecta_opciones_y_listas(cuerpo, cantidad):
 
     # Assert
     assert len(resultado) == cantidad if resultado is not None else cantidad is None
+
+
+@pytest.mark.parametrize(
+    ("linea", "esperado"),
+    [
+        ("1. Texto", ("1. ", "Texto")),
+        ("  12.   x", ("  12.   ", "x")),
+        ("1. ", ("1. ", "")),
+        ("1.", None),
+        ("a. x", None),
+        ("1.x", None),
+    ],
+)
+def test_exportador_parsear_numerado_reconoce_formato(linea, esperado):
+    # Arrange
+
+    # Act
+    resultado = pdf._parsear_numerado(linea)
+
+    # Assert
+    assert resultado == esperado
+
+
+def test_exportador_separador_divide_tres_partes_y_rechaza_una():
+    # Arrange
+
+    # Act
+    tres_partes = pdf._partir("Pregunta - A) uno - B) dos")
+    una_parte = pdf._partir("Pregunta - A")
+
+    # Assert
+    assert tres_partes == ["Pregunta", "A) uno", "B) dos"]
+    assert una_parte is None
+
+
+def test_exportador_parsear_numerado_entrada_adversa_responde_en_tiempo_lineal():
+    # Arrange
+    linea = "1." + " " * 50_000 + "x" * 50_000
+
+    # Act
+    inicio = time.perf_counter()
+    resultado = pdf._parsear_numerado(linea)
+
+    # Assert
+    assert resultado == ("1." + " " * 50_000, "x" * 50_000)
+    assert time.perf_counter() - inicio < 1
+
+
+def test_exportador_separador_entrada_adversa_responde_en_tiempo_lineal():
+    # Arrange
+    texto = "a" + " " * 50_000 + "b"
+
+    # Act
+    inicio = time.perf_counter()
+    resultado = pdf._RE_SEPARADOR.split(texto)
+
+    # Assert
+    assert resultado == [texto]
+    assert time.perf_counter() - inicio < 1
 
 
 @pytest.mark.parametrize(

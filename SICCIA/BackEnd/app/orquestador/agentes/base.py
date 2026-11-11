@@ -21,7 +21,7 @@ from ..schemas import Configurador, CursoPlan
 log = logging.getLogger(__name__)
 
 _MARCADOR = re.compile(r"<!--\s*ARCHIVO:\s*([A-Za-z0-9_\-.]+)\s*-->")
-_CERCA = re.compile(r"^\s*```(?:markdown|md)?\s*\n(.*)\n```\s*$", re.DOTALL)
+_CERCA = re.compile(r"```(?:markdown|md)?[^\S\n]*\n(.*)\n```", re.DOTALL)
 
 
 def normalizar_notacion_matematica(texto: str) -> str:
@@ -133,5 +133,5 @@ class ViaBase(ABC):
     @staticmethod
     def _limpiar(texto: str) -> str:
         texto = texto.strip()
-        m = _CERCA.match(texto)  # algunos modelos envuelven todo en ```markdown
+        m = _CERCA.fullmatch(texto)  # algunos modelos envuelven todo en ```markdown
         return (m.group(1) if m else texto).strip() + "\n"

@@ -18,6 +18,14 @@ def create_app():
     """Crea y configura la instancia de la aplicación Flask."""
     Config.validate()
 
+    # Seguridad (CSRF), Security Hotspot python:S4502 revisado:
+    # no se habilita CSRFProtect porque este servicio solo expone rutas de autenticación:
+    #  - /auth/google y /auth/google/callback: flujo OAuth protegido por el parámetro `state`.
+    #  - /auth/me: solo lectura.
+    #  - /auth/logout: únicamente cierra la sesión.
+    # No hay formularios ni endpoints que modifiquen datos del usuario, y la cookie de sesión
+    # es HttpOnly y SameSite=Lax (ver Config), por lo que no viaja en peticiones POST entre sitios.
+    # Si se agregan endpoints que cambien estado, hay que reevaluar esto y activar CSRFProtect.
     app = Flask(__name__)
     app.config.from_object(Config)
 

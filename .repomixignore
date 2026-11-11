@@ -1,0 +1,8 @@
+SICCIA/FrontEnd/.output/
+SICCIA/FrontEnd/.wrangler/
+SICCIA/FrontEnd/src/components/ui/
+*.zip
+*.pdf
+*.docx
+*.VSIXPackage
+*.csv

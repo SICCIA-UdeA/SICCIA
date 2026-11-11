@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from app.orquestador.agentes.base import ArchivoGenerado
 from app.orquestador.trabajos import EstadoTrabajo
 from controller.orquestador_controller import OrquestadorController
-from tests.factories import crear_configurador, fabrica_falsa
+from tests.factories import fabrica_falsa
 
 
 def _cliente_con_orquestador(orquestador):

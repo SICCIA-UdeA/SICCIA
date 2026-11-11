@@ -99,9 +99,9 @@ def perfil_publico(publico_objetivo: str) -> PerfilPublico:
     grados: tuple[int, int] | None = None
     if nivel in {"primaria", "secundaria", "media/bachillerato"}:
         expresion = (
-            r"(?<!\d)(\d{1,2})\s*(?:\.?\s*(?:º|°|o|ro))?"
+            r"(?<!\d)(\d{1,2})(?:\s*(?:\.\s*)?(?:º|°|o|ro))?"
             r"\s*(?:a|hasta|-|–|—|/|,|y)\s*"
-            r"(\d{1,2})\s*(?:\.?\s*(?:º|°|o|ro))?(?!\d)"
+            r"(\d{1,2})(?:\s*(?:\.\s*)?(?:º|°|o|ro))?(?!\d)"
         )
         coincidencia = re.search(expresion, texto)
         if coincidencia:
@@ -129,12 +129,12 @@ def perfil_publico(publico_objetivo: str) -> PerfilPublico:
 
 def _rango_horas(duracion: str, cantidad_temas: int) -> tuple[int, int]:
     rango = re.search(
-        r"(\d+)\s*(?:-|a|hasta)\s*(\d+)\s*horas?", duracion, flags=re.IGNORECASE
+        r"(?<!\d)(\d{1,6})\s{0,5}(?:-|a|hasta)\s{0,5}(\d{1,6})\s{0,5}horas?", duracion, flags=re.IGNORECASE
     )
     if rango:
         numeros = [int(rango.group(1)), int(rango.group(2))]
     else:
-        horas = re.search(r"(\d+)\s*horas?", duracion, flags=re.IGNORECASE)
+        horas = re.search(r"(?<!\d)(\d{1,6})\s{0,5}horas?", duracion, flags=re.IGNORECASE)
         numeros = [int(horas.group(1))] if horas else []
     if not numeros:
         minimo = maximo = cantidad_temas
