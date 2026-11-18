@@ -1,25 +1,43 @@
 
+# Dependencias y entornos
 node_modules/
-**/orquestador_salida/
-SICCIA/FrontEnd/package-lock.json
-SICCIA/FrontEnd/src/routeTree.gen.ts
-SICCIA.zip
-.env
 venv/
-__pycache__/
+env/
+.venv/
 
-# Archivo con credenciales y claves API
-SICCIA/env .txt
-
-
-node_modules/
-**/orquestador_salida/
-SICCIA/FrontEnd/package-lock.json
-SICCIA/FrontEnd/src/routeTree.gen.ts
-SICCIA.zip
+# Variables de entorno locales
 .env
 .env.save
-venv/
-__pycache__/
+**/.env
+SICCIA/env .txt
 
-repomix-output.xml
+# Builds y cachés
+SICCIA/FrontEnd/.output/
+SICCIA/FrontEnd/.wrangler/
+SICCIA/FrontEnd/src/routeTree.gen.ts
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+SICCIA/BackEnd/reports/
+
+# Resultados generados por el orquestador
+**/orquestador_salida/
+**/experimentos/
+**/registro_pruebas_siccia.csv
+**/sistema_solar.json
+*.zip
+*.pdf
+
+# Artefactos temporales
+*.VSIXPackage
+repomix-output.*
+prompt_copilot_sonar_limpieza.md
+
+# Editor y sistema
+.vscode/
+.idea/
+.DS_Store
+SICCIA/BackEnd/.env
+SICCIA/FrontEnd/.env

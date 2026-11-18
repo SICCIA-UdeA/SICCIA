@@ -1,6 +1,8 @@
 # Python probado en entorno limpio: 3.13.1 (mínimo requerido: 3.10).
 # Dependencias directas — autenticación y servidor
 Flask==3.1.0
+Flask-WTF==1.3.0
+WTForms==3.3.2
 Authlib==1.3.2
 python-dotenv==1.0.1
 requests==2.32.3

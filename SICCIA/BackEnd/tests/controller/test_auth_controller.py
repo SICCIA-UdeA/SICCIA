@@ -78,7 +78,7 @@ def test_auth_callback_sesion_establece_cookie_segura(cliente_flask, monkeypatch
     assert "SameSite=Lax" in cookie
 
 
-def test_auth_rutas_con_cambios_de_estado_solo_permiten_logout():
+def test_auth_rutas_con_cambios_de_estado_no_hay_ninguna():
     # Arrange
     from app import create_app
 
@@ -90,7 +90,24 @@ def test_auth_rutas_con_cambios_de_estado_solo_permiten_logout():
     }
 
     # Assert
-    assert rutas == {("/auth/logout", frozenset({"POST"}))}
+    assert rutas == set()
+
+
+def test_auth_post_sin_token_no_crea_sesion_ni_responde_200(cliente_flask):
+    # Arrange
+    cliente = cliente_flask
+    rutas_auth = [
+        regla.rule
+        for regla in cliente.application.url_map.iter_rules()
+        if regla.rule.startswith("/auth/")
+    ]
+
+    # Act
+    respuestas = [cliente.post(ruta) for ruta in rutas_auth]
+
+    # Assert
+    assert all(respuesta.status_code != 200 for respuesta in respuestas)
+    assert cliente.get("/auth/me").status_code == 401
 
 
 def test_auth_callback_estado_invalido_no_crea_sesion(cliente_flask):
@@ -150,13 +167,12 @@ def test_auth_me_sesion_ausente_o_epoch_antiguo_no_autentica(cliente_flask, epoc
     assert respuesta.json == {"authenticated": False}
 
 
-@pytest.mark.parametrize("metodo", ["get", "post"])
-def test_auth_logout_limpia_sesion_de_manera_idempotente(cliente_flask, metodo):
+def test_auth_logout_limpia_sesion_de_manera_idempotente(cliente_flask):
     # Arrange
     crear_sesion_flask(cliente_flask)
 
     # Act
-    respuesta = getattr(cliente_flask, metodo)("/auth/logout")
+    respuesta = cliente_flask.get("/auth/logout")
 
     # Assert
     assert respuesta.status_code == 200

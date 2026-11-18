@@ -9,6 +9,7 @@ problemas de importación circular a medida que la aplicación crezca.
 """
 
 from flask import Flask
+from flask_wtf.csrf import CSRFProtect
 
 from .config import Config
 from .services.google_auth import init_google_oauth
@@ -19,14 +20,15 @@ def create_app():
     Config.validate()
 
     # Seguridad (CSRF), Security Hotspot python:S4502 revisado:
-    # no se habilita CSRFProtect porque este servicio solo expone rutas de autenticación:
+    # se habilita CSRFProtect para proteger todas las peticiones con estado:
     #  - /auth/google y /auth/google/callback: flujo OAuth protegido por el parámetro `state`.
     #  - /auth/me: solo lectura.
     #  - /auth/logout: únicamente cierra la sesión.
-    # No hay formularios ni endpoints que modifiquen datos del usuario, y la cookie de sesión
-    # es HttpOnly y SameSite=Lax (ver Config), por lo que no viaja en peticiones POST entre sitios.
-    # Si se agregan endpoints que cambien estado, hay que reevaluar esto y activar CSRFProtect.
+    # CSRFProtect aplica a solicitudes de estado sin eximir rutas ni formularios.
+    # La cookie de sesión es HttpOnly y SameSite=Lax (ver Config).
     app = Flask(__name__)
+    csrf = CSRFProtect()
+    csrf.init_app(app)
     app.config.from_object(Config)
 
     # Registra el proveedor de Google en el cliente OAuth (Authlib).

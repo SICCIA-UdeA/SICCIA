@@ -28,7 +28,7 @@ class AuthController:
         )
         self.router.add_url_rule("/me", endpoint="me", view_func=self.me)
         self.router.add_url_rule(
-            "/logout", endpoint="logout", view_func=self.logout, methods=["GET", "POST"]
+            "/logout", endpoint="logout", view_func=self.logout, methods=["GET"]
         )
 
     def login_google(self):
