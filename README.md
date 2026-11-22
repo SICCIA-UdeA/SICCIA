@@ -4,8 +4,8 @@ SICCIA es una aplicación web para docentes que genera materiales educativos est
 
 El repositorio contiene dos partes:
 
-- [Frontend](/workspaces/SICCIA/SICCIA/FrontEnd): interfaz web construida con TanStack Start, React y TypeScript.
-- [Backend](/workspaces/SICCIA/SICCIA/BackEnd): servidor Python que combina FastAPI y Flask, autenticación OAuth con Google, orquestación de cursos y generación de PDF.
+- [Frontend](SICCIA/FrontEnd): interfaz web construida con TanStack Start, React y TypeScript.
+- [Backend](SICCIA/BackEnd): servidor Python que combina FastAPI y Flask, autenticación OAuth con Google, orquestación de cursos y generación de PDF.
 
 ## Arquitectura
 
@@ -37,7 +37,7 @@ El backend expuesto por `SICCIA/BackEnd/run.py` usa un único puerto ASGI:
 - Cuenta y credenciales OAuth 2.0 de Google para iniciar sesión.
 - Opcional: credenciales de Gemini, OpenAI u otro proveedor compatible para generar cursos reales.
 
-Las versiones de las dependencias Python están fijadas en [dependencias.txt](/workspaces/SICCIA/dependencias.txt).
+Las versiones de las dependencias Python están fijadas en [dependencias.txt](dependencias.txt).
 
 ## Instalación
 
@@ -189,7 +189,7 @@ El trabajo de generación vive en memoria y se pierde al reiniciar el backend. L
 
 ## Documentación relacionada
 
-- [Guía de instalación](/workspaces/SICCIA/GUIA_DE_INSTALACION.md)
-- [Backend](/workspaces/SICCIA/SICCIA/BackEnd/README.md)
-- [Diagrama del orquestador](/workspaces/SICCIA/SICCIA/BackEnd/diagrama_orquestador.md)
-- [Matriz de pruebas](/workspaces/SICCIA/SICCIA/BackEnd/tests/MATRIZ_PRUEBAS.md)
+- [Guía de instalación](GUIA_DE_INSTALACION.md)
+- [Backend](SICCIA/BackEnd/README.md)
+- [Diagrama del orquestador](SICCIA/BackEnd/diagrama_orquestador.md)
+- [Matriz de pruebas](SICCIA/BackEnd/tests/MATRIZ_PRUEBAS.md)
