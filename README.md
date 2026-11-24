@@ -48,28 +48,20 @@ git clone https://github.com/SICCIA-UdeA/SICCIA.git
 cd SICCIA
 ```
 
-### 2. Backend
+### 2. Configurar el backend
+
+Copia el archivo de ejemplo y configura al menos las variables necesarias para autenticación y, opcionalmente, el proveedor de generación:
 
 Linux o macOS:
 
 ```bash
-cd SICCIA/BackEnd
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r ../../dependencias.txt
-cp .env.example .env
+cp SICCIA/BackEnd/.env.example SICCIA/BackEnd/.env
 ```
 
 Windows PowerShell:
 
 ```powershell
-cd SICCIA\BackEnd
-py -3.13 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r ..\..\dependencias.txt
-Copy-Item .env.example .env
+Copy-Item SICCIA\BackEnd\.env.example SICCIA\BackEnd\.env
 ```
 
 No publiques el archivo `.env`. Configura al menos la clave secreta de Flask y las credenciales OAuth:
@@ -86,42 +78,23 @@ SESSION_COOKIE_SECURE=False
 
 Para una generación real también configura un proveedor en variables `ORQ_*`. El modo `mock` permite probar el orquestador sin claves externas.
 
-### 3. Frontend
+## Ejecución recomendada
 
-Desde otra terminal:
-
-```bash
-cd SICCIA/FrontEnd
-bun install
-```
-
-También puede usar npm:
+Desde la raíz del repositorio, inicia juntos el backend y el frontend:
 
 ```bash
-npm install
+python main.py
 ```
 
-## Ejecutar
+El lanzador instala las dependencias de Python y frontend que falten y termina ambos procesos al pulsar `Ctrl+C`.
 
-Abre el backend:
+Para comprobar únicamente si las dependencias están listas sin instalarlas ni iniciar los servicios:
 
 ```bash
-cd SICCIA/BackEnd
-python run.py
+python main.py --check
 ```
 
-Abre el frontend:
-
-```bash
-cd SICCIA/FrontEnd
-bun run dev
-```
-
-Con npm:
-
-```bash
-npm run dev
-```
+El lanzador requiere Python, Node.js y Bun o npm.
 
 Direcciones locales:
 
@@ -131,21 +104,30 @@ Direcciones locales:
 
 Usa siempre `localhost`, no mezclado con `127.0.0.1`, para conservar correctamente la cookie de sesión.
 
-## Cómo ejecutar el proyecto
+## Ejecución manual alternativa
 
-Desde la raíz del repositorio, ejecuta:
+Solo utiliza esta opción si necesitas iniciar cada servicio por separado.
 
-```bash
-python main.py
-```
-
-El comando instala las dependencias que falten y arranca el backend y el frontend. Para comprobar únicamente si están listas las dependencias sin instalar ni arrancar nada:
+Backend:
 
 ```bash
-python main.py --check
+cd SICCIA/BackEnd
+python run.py
 ```
 
-Requiere Python, Node.js y Bun o npm.
+Frontend, con Bun:
+
+```bash
+cd SICCIA/FrontEnd
+bun run dev
+```
+
+Frontend, con npm:
+
+```bash
+cd SICCIA/FrontEnd
+npm run dev
+```
 
 ## API principal
 
