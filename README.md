@@ -38,6 +38,7 @@ El backend expuesto por `SICCIA/BackEnd/run.py` usa un único puerto ASGI:
 - Opcional: credenciales de Gemini, OpenAI u otro proveedor compatible para generar cursos reales.
 
 Las versiones de las dependencias Python están fijadas en [dependencias.txt](dependencias.txt).
+En Windows, consulta también las [instrucciones de bibliotecas nativas de WeasyPrint](SICCIA/BackEnd/README.md#bibliotecas-nativas-para-exportar-pdf-en-windows).
 
 ## Instalación
 
@@ -95,6 +96,22 @@ python main.py --check
 ```
 
 El lanzador requiere Python, Node.js y Bun o npm.
+
+### Intérprete de Python en VS Code
+
+`main.py` comprueba e instala las dependencias usando el mismo intérprete de Python con el que se ejecuta. El botón de ejecución de Python de VS Code usa el intérprete seleccionado; la terminal puede usar otro. Si VS Code ejecuta un Python global administrado por `uv`, `pip` puede rechazar la instalación con `externally-managed-environment`. No uses `--break-system-packages`; crea un entorno virtual para el proyecto:
+
+```powershell
+py -3.13 -m venv .venv
+```
+
+En VS Code, selecciona `.venv` con **Python: Select Interpreter** (`Ctrl+Shift+P`). En una terminal PowerShell, activa ese entorno y ejecuta el lanzador:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python main.py --check
+python main.py
+```
 
 Direcciones locales:
 

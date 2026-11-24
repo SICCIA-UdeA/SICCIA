@@ -27,7 +27,7 @@ La fuente de verdad con todas las dependencias Python y sus versiones fijadas es
 | Manifiesto | Librerías principales | Uso |
 |---|---|---|
 | `requirements.txt` | `Flask`, `Authlib`, `python-dotenv`, `requests` | API de autenticación Google, sesiones y configuración. |
-| `app/requirements.txt` | `fastapi`, `uvicorn[standard]`, `a2wsgi`, `pydantic`, `agno`, `google-genai`, `openai`, `pytest`, `pytest-asyncio`, `httpx` | Servidor unificado ASGI, integración WSGI de Flask, API del orquestador y proveedores LLM. |
+| `app/requirements.txt` | `fastapi`, `uvicorn[standard]`, `a2wsgi`, `pydantic`, `agno`, `google-genai`, `openai`, `markdown`, `weasyprint`, `pytest`, `pytest-asyncio`, `httpx` | Servidor unificado ASGI, integración WSGI de Flask, proveedores LLM y exportación de PDF. |
 | `../../dependencias.txt` | `pytest`, `pytest-asyncio`, `pytest-cov`, `coverage`, `httpx` | Suite unitaria y reportes JUnit/Cobertura. |
 
 `agno`, `google-genai` y `openai` se usan al seleccionar sus proveedores correspondientes. El modo `mock` del orquestador no necesita claves de modelo.
@@ -53,6 +53,25 @@ pip install -r ../../dependencias.txt
 # 4. Crear el archivo de configuración
 cp .env.example .env            # en Windows: copy .env.example .env
 ```
+
+### Bibliotecas nativas para exportar PDF en Windows
+
+WeasyPrint se instala como dependencia de Python, pero en Windows también necesita bibliotecas nativas (Pango/GObject) que `pip` no instala. Sin ellas, el backend puede generar los materiales del curso, pero falla al convertirlos a PDF.
+
+1. Instala [MSYS2](https://www.msys2.org/) con las opciones predeterminadas.
+2. Desde el menú Inicio, abre **MSYS2 UCRT64** (no PowerShell) y ejecuta:
+   ```bash
+   pacman -S mingw-w64-ucrt-x86_64-pango
+   ```
+3. En el `.env` del backend, agrega la ruta de las DLL de MSYS2:
+   ```dotenv
+   WEASYPRINT_DLL_DIRECTORIES=C:/msys64/ucrt64/bin
+   ```
+   La ruta corresponde a la instalación predeterminada de MSYS2. Si se instaló en otra ubicación, actualízala. También puedes descomentar esta variable en `.env.example` antes de crear `.env`.
+4. Guarda `.env` y reinicia el backend. Para comprobar la instalación desde la terminal integrada de VS Code:
+   ```powershell
+   python -m weasyprint --info
+   ```
 
 Edita `.env` y completa:
 
