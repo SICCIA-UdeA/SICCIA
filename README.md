@@ -131,6 +131,22 @@ Direcciones locales:
 
 Usa siempre `localhost`, no mezclado con `127.0.0.1`, para conservar correctamente la cookie de sesión.
 
+## Cómo ejecutar el proyecto
+
+Desde la raíz del repositorio, ejecuta:
+
+```bash
+python main.py
+```
+
+El comando instala las dependencias que falten y arranca el backend y el frontend. Para comprobar únicamente si están listas las dependencias sin instalar ni arrancar nada:
+
+```bash
+python main.py --check
+```
+
+Requiere Python, Node.js y Bun o npm.
+
 ## API principal
 
 ### Autenticación
